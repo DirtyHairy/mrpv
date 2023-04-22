@@ -3,7 +3,9 @@
 #include "config.h"
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
+#include "esp_intr_alloc.h"
 #include "esp_log.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 
 #define SPI_MAX_TRANSFER_SIZE (300 * 50)
@@ -74,6 +76,8 @@ spi_device_handle_t display_handle;
 
 display_driver::mode current_mode = display_driver::mode::undefined;
 
+QueueHandle_t busyNotificationQueue;
+
 void send_data_tx_polling(spi_transaction_t* tx) {
     gpio_set_level(DISPLAY_PIN_DC, 1);
     spi_device_polling_transmit(display_handle, tx);
@@ -127,6 +131,11 @@ void send_command(uint8_t command, const uint8_t* data, size_t len) {
     send_data_tx(&tx);
 }
 
+void busy_isr(void*) {
+    uint8_t value = 0;
+    xQueueSendFromISR(busyNotificationQueue, reinterpret_cast<void*>(&value), nullptr);
+}
+
 void configure_lut(const uint8_t* lut_vcom, const uint8_t* lut_ww, const uint8_t* lut_bw, const uint8_t* lut_wb,
                    const uint8_t* lut_bb) {
     send_command(0x20, lut_vcom, 44);
@@ -136,13 +145,12 @@ void configure_lut(const uint8_t* lut_vcom, const uint8_t* lut_ww, const uint8_t
     send_command(0x24, lut_bb, 42);
 }
 
-void wait_busy() {
-    send_command(0x71);
+void prepare_wait_busy() { xQueueReset(busyNotificationQueue); }
 
-    while (gpio_get_level(DISPLAY_PIN_BUSY) == 0) {
-        send_command(0x71);
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-    }
+void wait_busy() {
+    uint8_t value;
+    if (xQueueReceive(busyNotificationQueue, &value, 10000 / portTICK_PERIOD_MS) != pdTRUE)
+        ESP_LOGE(TAG, "busy flag still asserted after 10 seconds, giving up");
 }
 void reset_sequence() {
     for (int i = 0; i < 3; i++) {
@@ -160,6 +168,7 @@ void initialize() {
     send_command(0x01, 0x03, 0x00, 0x2b, 0x2b);  // power settings
     send_command(0x06, 0x17, 0x17, 0x17);        // booster soft start settings
 
+    prepare_wait_busy();
     send_command(0x04);  // power on
     wait_busy();
 
@@ -202,10 +211,17 @@ bool display_driver::init() {
         return false;
     }
 
+    busyNotificationQueue = xQueueCreate(1, 1);
+    gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
+    gpio_isr_handler_add(DISPLAY_PIN_BUSY, busy_isr, nullptr);
+
     gpio_config_t io_out_config = {.pin_bit_mask = (1 << DISPLAY_PIN_RST) | (1 << DISPLAY_PIN_DC),
                                    .mode = GPIO_MODE_OUTPUT};
 
-    gpio_config_t io_in_config = {.pin_bit_mask = (1 << DISPLAY_PIN_BUSY), .mode = GPIO_MODE_INPUT};
+    gpio_config_t io_in_config = {.pin_bit_mask = (1 << DISPLAY_PIN_BUSY),
+                                  .mode = GPIO_MODE_INPUT,
+                                  .pull_up_en = GPIO_PULLUP_ENABLE,
+                                  .intr_type = GPIO_INTR_POSEDGE};
 
     if (gpio_config(&io_out_config) != ESP_OK || gpio_config(&io_in_config) != ESP_OK) {
         ESP_LOGE(TAG, "failed to configure GPIOs");
@@ -224,9 +240,8 @@ bool display_driver::init() {
 }
 
 void display_driver::refresh_display() {
+    prepare_wait_busy();
     send_command(0x12);  // refresh display
-
-    vTaskDelay(100 / portTICK_PERIOD_MS);
     wait_busy();
 }
 
@@ -255,11 +270,13 @@ void display_driver::set_mode_partial() {
 display_driver::mode display_driver::get_mode() { return current_mode; }
 
 void display_driver::turn_off() {
+    prepare_wait_busy();
     send_command(0x02);
     wait_busy();
 }
 
 void display_driver::turn_on() {
+    prepare_wait_busy();
     send_command(0x04);
     wait_busy();
 }
