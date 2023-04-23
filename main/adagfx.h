@@ -68,6 +68,24 @@ class Adafruit_GFX {
         write(s);
     }
 
+    template <typename T>
+    void writeCentered(int16_t x, int16_t y, T s) {
+        int16_t x1, y1;
+        uint16_t w, h;
+
+        getTextBounds(s, x, y, &x1, &y1, &w, &h);
+        write(x - (w >> 1), y, s);
+    }
+
+    template <typename T>
+    void writeRightJustified(int16_t x, int16_t y, T s) {
+        int16_t x1, y1;
+        uint16_t w, h;
+
+        getTextBounds(s, x, y, &x1, &y1, &w, &h);
+        write(x - w, y, s);
+    }
+
     void setCursor(int16_t x, int16_t y) {
         cursor_x = x;
         cursor_y = y;
