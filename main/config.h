@@ -1,3 +1,15 @@
+#define TIMEZONE "GMT+2"
+#define MONDAY "Montag"
+#define TUESDAY "Dienstag"
+#define WEDNESDAY "Mittwoch"
+#define THURSDAY "Donnerstag"
+#define FRIDAY "Freitag"
+#define SATURDAY "Samstag"
+#define SUNDAY "Sonntag"
+#define FORMAT_TIME "%H:%M:%S"
+#define FORMAT_DATE "%d.%m.%Y"
+#define FORMAT_DATETIME "%s Uhr / %s %s"
+
 #define SPI_PIN_SCLK GPIO_NUM_13
 #define SPI_PIN_MOSI GPIO_NUM_14
 
