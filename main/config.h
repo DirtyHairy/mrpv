@@ -1,4 +1,6 @@
-#define TIMEZONE "GMT+2"
+// https://remotemonitoringsystems.ca/time-zone-abbreviations.php
+#define TIMEZONE "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"
+
 #define MONDAY "Montag"
 #define TUESDAY "Dienstag"
 #define WEDNESDAY "Mittwoch"
@@ -6,9 +8,17 @@
 #define FRIDAY "Freitag"
 #define SATURDAY "Samstag"
 #define SUNDAY "Sonntag"
+
 #define FORMAT_TIME "%H:%M:%S"
 #define FORMAT_DATE "%d.%m.%Y"
 #define FORMAT_DATETIME "%s Uhr / %s %s"
+
+#define LABEL_PV "PV"
+#define LABEL_PV_ACCUMULATED "heute"
+#define LABEL_LOAD "Last"
+#define LABEL_LOAD_ACCUMULATED "heute"
+#define LABEL_SURPLUS "Abgabe"
+#define LABEL_NETWORK "Bezug"
 
 #define SPI_PIN_SCLK GPIO_NUM_13
 #define SPI_PIN_MOSI GPIO_NUM_14
