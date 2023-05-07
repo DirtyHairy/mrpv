@@ -1,28 +1,39 @@
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
+#include <esp_event.h>
+#include <esp_log.h>
+#include <esp_sleep.h>
+#include <freertos/event_groups.h>
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
 
-#include "adagfx.h"
 #include "config.h"
-#include "display_driver.h"
-#include "esp_log.h"
-#include "esp_random.h"
-#include "font.h"
-#include "icon.h"
+#include "display_task.h"
 #include "view.h"
+
+namespace {
+
+const char* TAG = "main";
+
+EventGroupHandle_t event_group_handle;
+
+enum event_bit { display_complete = 1 };
+
+void on_display_complete(void*, esp_event_base_t, int32_t, void*) {
+    xEventGroupSetBits(event_group_handle, event_bit::display_complete);
+}
+
+}  // namespace
 
 extern "C" void app_main(void) {
     setenv("TZ", TIMEZONE, 1);
     tzset();
 
-    display_driver::init();
+    event_group_handle = xEventGroupCreate();
+    esp_event_loop_create_default();
+    esp_event_handler_register(DISPLAY_BASE, display_task::event_display_complete, on_display_complete, nullptr);
 
-    Adafruit_GFX gfx;
-    gfx.setTextWrap(false);
+    display_task::start();
 
     view::model_t model = {.connection_status = view::connection_status_t::online,
                            .battery_status = view::battery_status_t::full,
@@ -38,11 +49,14 @@ extern "C" void app_main(void) {
 
     strcpy(model.error_message, "no connection to API");
 
-    view::render(gfx, model);
+    display_task::display(model);
 
-    display_driver::set_mode_full();
-    display_driver::display_full(gfx.getBuffer());
-    display_driver::refresh_display();
+    xEventGroupWaitBits(event_group_handle, event_bit::display_complete, pdTRUE, pdFALSE, portMAX_DELAY);
 
-    display_driver::turn_off();
+    ESP_LOGI(TAG, "done, going to sleep now");
+
+    for (auto domain : {ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_DOMAIN_RTC_FAST_MEM, ESP_PD_DOMAIN_VDDSDIO})
+        esp_sleep_pd_config(domain, ESP_PD_OPTION_AUTO);
+
+    esp_deep_sleep(20 * 1000000);
 }

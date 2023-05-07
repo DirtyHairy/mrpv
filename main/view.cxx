@@ -138,6 +138,8 @@ void draw_status_icons(Adafruit_GFX& gfx, const view::model_t& model) {
 }  // namespace
 
 void view::render(Adafruit_GFX& gfx, const model_t& model) {
+    gfx.setTextWrap(false);
+
     const char* formatted_time(format_time(model.epoch));
     if (format_time(model.epoch)) {
         gfx.setFont(&font::freeSans9pt7b);

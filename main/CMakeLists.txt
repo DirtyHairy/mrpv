@@ -12,6 +12,7 @@ idf_component_register(SRCS
     "font/FreeSans9pt7b.cxx"
     "icon.cxx"
     "view.cxx"
+    "display_task.cxx"
     INCLUDE_DIRS ".")
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)
