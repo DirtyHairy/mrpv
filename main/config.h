@@ -1,3 +1,5 @@
+#include "config_local.h"
+
 // https://remotemonitoringsystems.ca/time-zone-abbreviations.php
 #define TIMEZONE "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"
 
@@ -19,6 +21,8 @@
 #define LABEL_LOAD_ACCUMULATED "heute"
 #define LABEL_SURPLUS "Abgabe"
 #define LABEL_NETWORK "Bezug"
+
+#define NTP_SERVER "pool.ntp.org"
 
 #define SPI_PIN_SCLK GPIO_NUM_13
 #define SPI_PIN_MOSI GPIO_NUM_14
