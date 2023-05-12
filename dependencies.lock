@@ -1,0 +1,15 @@
+dependencies:
+  espressif/nghttp:
+    component_hash: 713c26854e433e1c70ba8ee6d361220394457cccb0765d8172302e5d660bdc58
+    source:
+      service_url: https://api.components.espressif.com/
+      type: service
+    version: 1.52.0
+  idf:
+    component_hash: null
+    source:
+      type: idf
+    version: 5.0.1
+manifest_hash: 21e1fc20d31bf06aea6e9e167f8e1ec68cefd8badaab9d082ba3e4ed5fe75a95
+target: esp32
+version: 1.0.0

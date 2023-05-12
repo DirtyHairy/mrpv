@@ -14,6 +14,7 @@ idf_component_register(SRCS
     "view.cxx"
     "display_task.cxx"
     "network.cxx"
+    "sh2lib.c"
     INCLUDE_DIRS ".")
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)

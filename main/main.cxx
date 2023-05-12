@@ -1,6 +1,7 @@
 #include <esp_event.h>
 #include <esp_log.h>
 #include <esp_sleep.h>
+#include <esp_timer.h>
 #include <freertos/task.h>
 #include <nvs_flash.h>
 
@@ -8,14 +9,18 @@
 
 #include "config.h"
 #include "display_task.h"
+#include "esp_crt_bundle.h"
 #include "network.h"
+#include "sh2lib.h"
 #include "view.h"
 
 namespace {
 
-const char* TAG = "main";
+const char *TAG = "main";
 
 enum event_bit { display_complete = 0x01, wifi_connected = 0x02, wifi_disconnected = 0x04, sntp_sync_complete = 0x08 };
+
+bool stream_closed{false};
 
 void init_nvfs() {
     esp_err_t result = nvs_flash_init();
@@ -25,6 +30,60 @@ void init_nvfs() {
     }
 
     ESP_ERROR_CHECK(result);
+}
+
+int rcv_cb(struct sh2lib_handle *handle, const char *data, size_t len, int flags) {
+    switch (flags) {
+        case DATA_RECV_RST_STREAM:
+            stream_closed = true;
+            break;
+
+        case DATA_RECV_FRAME_COMPLETE: {
+            ESP_LOGI(TAG, "frame complete");
+            break;
+        }
+
+        case 0: {
+            std::string response(data, len);
+            ESP_LOGI(TAG, "received %u bytes: %s", len, response.c_str());
+            break;
+        }
+    }
+
+    return 0;
+}
+
+void do_requests() {
+    sh2lib_config_t config = {.uri = "https://newton.vercel.app", .crt_bundle_attach = esp_crt_bundle_attach};
+    sh2lib_handle handle;
+
+    ESP_LOGI(TAG, "connecting to server");
+
+    if (sh2lib_connect(&config, &handle) != 0)
+        ESP_LOGE(TAG, "failed to connect");
+    else
+        ESP_LOGI(TAG, "connection complete");
+
+    sh2lib_do_get(&handle, "/api/v2/derive/x^4", rcv_cb);
+
+    uint64_t timestamp = esp_timer_get_time();
+
+    while (!stream_closed) {
+        if (esp_timer_get_time() - timestamp > 10000000) {
+            ESP_LOGE(TAG, "request timeout");
+            break;
+        }
+
+        /* Process HTTP2 send/receive */
+        if (sh2lib_execute(&handle) != 0) {
+            ESP_LOGE(TAG, "failed to process request");
+            break;
+        }
+
+        vTaskDelay(1);
+    }
+
+    sh2lib_free(&handle);
 }
 
 }  // namespace
@@ -43,6 +102,8 @@ void run() {
         ESP_LOGE(TAG, "network startup failed");
         return;
     }
+
+    do_requests();
 
     network::stop();
 
