@@ -6,8 +6,9 @@
 
 #pragma once
 
-#include "esp_tls.h"
 #include <nghttp2/nghttp2.h>
+
+#include "esp_tls.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,27 +30,27 @@ extern "C" {
  * @brief Handle for working with sh2lib APIs
  */
 struct sh2lib_handle {
-    nghttp2_session *http2_sess;   /*!< Pointer to the HTTP2 session handle */
-    char            *hostname;     /*!< The hostname we are connected to */
-    struct esp_tls  *http2_tls;    /*!< Pointer to the TLS session handle */
+    nghttp2_session *http2_sess; /*!< Pointer to the HTTP2 session handle */
+    char *hostname;              /*!< The hostname we are connected to */
+    struct esp_tls *http2_tls;   /*!< Pointer to the TLS session handle */
 };
 
 /**
  * @brief sh2lib configuration structure
  */
 struct sh2lib_config_t {
-    const char *uri;                    /*!< Pointer to the URI that should be connected to */
-    const unsigned char *cacert_buf;    /*!< Pointer to the buffer containing CA certificate */
-    unsigned int cacert_bytes;          /*!< Size of the CA certifiacte pointed by cacert_buf */
+    const char *uri;                 /*!< Pointer to the URI that should be connected to */
+    const unsigned char *cacert_buf; /*!< Pointer to the buffer containing CA certificate */
+    unsigned int cacert_bytes;       /*!< Size of the CA certifiacte pointed by cacert_buf */
     esp_err_t (*crt_bundle_attach)(void *conf);
     /*!< Function pointer to esp_crt_bundle_attach. Enables the use of certification
          bundle for server verification, must be enabled in menuconfig */
 };
 
 /** Flag indicating receive stream is reset */
-#define DATA_RECV_RST_STREAM      1
+#define DATA_RECV_RST_STREAM 1
 /** Flag indicating frame is completely received  */
-#define DATA_RECV_FRAME_COMPLETE  2
+#define DATA_RECV_FRAME_COMPLETE 2
 
 /**
  * @brief Function Prototype for data receive callback
@@ -68,7 +69,8 @@ struct sh2lib_config_t {
  *
  * @return The function should return 0
  */
-typedef int (*sh2lib_frame_data_recv_cb_t)(struct sh2lib_handle *handle, const char *data, size_t len, int flags);
+typedef int (*sh2lib_frame_data_recv_cb_t)(struct sh2lib_handle *handle, int stream_id, const char *data, size_t len,
+                                           int flags);
 
 /**
  * @brief Function Prototype for callback to send data in PUT/POST
@@ -155,8 +157,7 @@ int sh2lib_do_get(struct sh2lib_handle *hd, const char *path, sh2lib_frame_data_
  *             - ESP_OK if request setup is successful
  *             - ESP_FAIL if the request setup fails
  */
-int sh2lib_do_post(struct sh2lib_handle *hd, const char *path,
-                   sh2lib_putpost_data_cb_t send_cb,
+int sh2lib_do_post(struct sh2lib_handle *hd, const char *path, sh2lib_putpost_data_cb_t send_cb,
                    sh2lib_frame_data_recv_cb_t recv_cb);
 
 /**
@@ -179,8 +180,7 @@ int sh2lib_do_post(struct sh2lib_handle *hd, const char *path,
  *             - ESP_OK if request setup is successful
  *             - ESP_FAIL if the request setup fails
  */
-int sh2lib_do_put(struct sh2lib_handle *hd, const char *path,
-                  sh2lib_putpost_data_cb_t send_cb,
+int sh2lib_do_put(struct sh2lib_handle *hd, const char *path, sh2lib_putpost_data_cb_t send_cb,
                   sh2lib_frame_data_recv_cb_t recv_cb);
 
 /**
@@ -199,11 +199,8 @@ int sh2lib_do_put(struct sh2lib_handle *hd, const char *path,
  */
 int sh2lib_execute(struct sh2lib_handle *hd);
 
-#define SH2LIB_MAKE_NV(NAME, VALUE)                                    \
-  {                                                                    \
-    (uint8_t *)NAME, (uint8_t *)VALUE, strlen(NAME), strlen(VALUE),    \
-        NGHTTP2_NV_FLAG_NONE                                           \
-  }
+#define SH2LIB_MAKE_NV(NAME, VALUE) \
+    { (uint8_t *)NAME, (uint8_t *)VALUE, strlen(NAME), strlen(VALUE), NGHTTP2_NV_FLAG_NONE }
 
 /**
  * @brief Setup an HTTP GET request stream with custom name-value pairs
@@ -231,7 +228,8 @@ int sh2lib_execute(struct sh2lib_handle *hd);
  *             - ESP_OK if request setup is successful
  *             - ESP_FAIL if the request setup fails
  */
-int sh2lib_do_get_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_t nvlen, sh2lib_frame_data_recv_cb_t recv_cb);
+int sh2lib_do_get_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_t nvlen,
+                          sh2lib_frame_data_recv_cb_t recv_cb);
 
 /**
  * @brief Setup an HTTP PUT/POST request stream with custom name-value pairs
@@ -263,8 +261,7 @@ int sh2lib_do_get_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_
  *             - ESP_FAIL if the request setup fails
  */
 int sh2lib_do_putpost_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_t nvlen,
-                              sh2lib_putpost_data_cb_t send_cb,
-                              sh2lib_frame_data_recv_cb_t recv_cb);
+                              sh2lib_putpost_data_cb_t send_cb, sh2lib_frame_data_recv_cb_t recv_cb);
 
 #ifdef __cplusplus
 }

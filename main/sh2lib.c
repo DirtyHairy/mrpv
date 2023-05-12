@@ -17,7 +17,6 @@
 #include <string.h>
 #include <unistd.h>
 
-
 #pragma GCC diagnostic ignored "-Wformat"
 
 static const char *TAG = "sh2lib";
@@ -147,7 +146,7 @@ static int callback_on_frame_recv(nghttp2_session *session, const nghttp2_frame 
     sh2lib_frame_data_recv_cb_t data_recv_cb = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
     if (data_recv_cb) {
         struct sh2lib_handle *h2 = user_data;
-        (*data_recv_cb)(h2, NULL, 0, DATA_RECV_FRAME_COMPLETE);
+        (*data_recv_cb)(h2, 0, NULL, 0, DATA_RECV_FRAME_COMPLETE);
     }
     return 0;
 }
@@ -157,7 +156,7 @@ static int callback_on_stream_close(nghttp2_session *session, int32_t stream_id,
     sh2lib_frame_data_recv_cb_t data_recv_cb = nghttp2_session_get_stream_user_data(session, stream_id);
     if (data_recv_cb) {
         struct sh2lib_handle *h2 = user_data;
-        (*data_recv_cb)(h2, NULL, 0, DATA_RECV_RST_STREAM);
+        (*data_recv_cb)(h2, stream_id, NULL, 0, DATA_RECV_RST_STREAM);
     }
     return 0;
 }
@@ -173,7 +172,7 @@ static int callback_on_data_chunk_recv(nghttp2_session *session, uint8_t flags, 
                  "%lu bytes",
                  (unsigned long int)len);
         struct sh2lib_handle *h2 = user_data;
-        (*data_recv_cb)(h2, (char *)data, len, 0);
+        (*data_recv_cb)(h2, stream_id, (char *)data, len, 0);
         /* TODO: What to do with the return value: look for pause/abort */
     }
     return 0;

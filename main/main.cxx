@@ -20,7 +20,7 @@ const char *TAG = "main";
 
 enum event_bit { display_complete = 0x01, wifi_connected = 0x02, wifi_disconnected = 0x04, sntp_sync_complete = 0x08 };
 
-bool stream_closed{false};
+int streams_pending = 2;
 
 void init_nvfs() {
     esp_err_t result = nvs_flash_init();
@@ -32,20 +32,16 @@ void init_nvfs() {
     ESP_ERROR_CHECK(result);
 }
 
-int rcv_cb(struct sh2lib_handle *handle, const char *data, size_t len, int flags) {
+int rcv_cb(struct sh2lib_handle *handle, int stream_id, const char *data, size_t len, int flags) {
     switch (flags) {
         case DATA_RECV_RST_STREAM:
-            stream_closed = true;
+            ESP_LOGI(TAG, "stream %i closed", stream_id);
+            streams_pending--;
             break;
-
-        case DATA_RECV_FRAME_COMPLETE: {
-            ESP_LOGI(TAG, "frame complete");
-            break;
-        }
 
         case 0: {
             std::string response(data, len);
-            ESP_LOGI(TAG, "received %u bytes: %s", len, response.c_str());
+            ESP_LOGI(TAG, "received %u bytes on stream %i: %s", len, stream_id, response.c_str());
             break;
         }
     }
@@ -65,10 +61,11 @@ void do_requests() {
         ESP_LOGI(TAG, "connection complete");
 
     sh2lib_do_get(&handle, "/api/v2/derive/x^4", rcv_cb);
+    sh2lib_do_get(&handle, "/api/v2/derive/x^3", rcv_cb);
 
     uint64_t timestamp = esp_timer_get_time();
 
-    while (!stream_closed) {
+    while (streams_pending > 0) {
         if (esp_timer_get_time() - timestamp > 10000000) {
             ESP_LOGE(TAG, "request timeout");
             break;
