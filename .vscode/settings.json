@@ -1,6 +1,8 @@
 {
     "idf.adapterTargetName": "esp32",
-    "files.associations": {},
+    "files.associations": {
+        "typeinfo": "c"
+    },
     "editor.formatOnSave": true,
     "cmake.configureOnOpen": false
 }

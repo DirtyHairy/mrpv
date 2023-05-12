@@ -13,6 +13,7 @@ idf_component_register(SRCS
     "icon.cxx"
     "view.cxx"
     "display_task.cxx"
+    "network.cxx"
     INCLUDE_DIRS ".")
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)

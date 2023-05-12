@@ -2,18 +2,23 @@
 
 #include <esp_log.h>
 
+// clang-format off
+#include "freertos/FreeRTOS.h"
+// clang-format on
 #include "display_driver.h"
+#include "freertos/event_groups.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
-ESP_EVENT_DEFINE_BASE(DISPLAY_BASE);
-
 namespace {
 
-const char* TAG = "display";
+const char* TAG = "display-task";
+
+enum event_bit { display_complete = 0x01 };
 
 TaskHandle_t task_handle;
 QueueHandle_t queue_handle;
+EventGroupHandle_t event_group_handle;
 
 void task_main(void*) {
     display_driver::init();
@@ -36,7 +41,7 @@ void task_main(void*) {
 
     ESP_LOGI(TAG, "done");
 
-    esp_event_post(DISPLAY_BASE, display_task::event_display_complete, nullptr, 0, portMAX_DELAY);
+    xEventGroupSetBits(event_group_handle, event_bit::display_complete);
 
     vTaskDelete(nullptr);
 }
@@ -45,7 +50,13 @@ void task_main(void*) {
 
 void display_task::start() {
     queue_handle = xQueueCreate(1, sizeof(view::model_t));
+    event_group_handle = xEventGroupCreate();
+
     xTaskCreate(task_main, "display_task", 4096, nullptr, 10, &task_handle);
 }
 
-void display_task::display(const view::model_t& model) { xQueueSend(queue_handle, &model, portMAX_DELAY); }
+void display_task::display(const view::model_t& model) {
+    xQueueSend(queue_handle, &model, portMAX_DELAY);
+
+    xEventGroupWaitBits(event_group_handle, event_bit::display_complete, pdTRUE, pdFAIL, portMAX_DELAY);
+}
