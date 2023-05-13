@@ -356,3 +356,7 @@ int sh2lib_do_put(struct sh2lib_handle *hd, const char *path, sh2lib_putpost_dat
     };
     return sh2lib_do_putpost_with_nv(hd, nva, sizeof(nva) / sizeof(nva[0]), send_cb, recv_cb);
 }
+
+esp_err_t sh2lib_get_sockfd(struct sh2lib_handle *hd, int *sockfd) {
+    return esp_tls_get_conn_sockfd(hd->http2_tls, sockfd);
+}

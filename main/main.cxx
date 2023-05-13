@@ -4,6 +4,7 @@
 #include <esp_timer.h>
 #include <freertos/task.h>
 #include <nvs_flash.h>
+#include <sys/select.h>
 
 #include <cstring>
 
@@ -55,31 +56,68 @@ void do_requests() {
 
     ESP_LOGI(TAG, "connecting to server");
 
-    if (sh2lib_connect(&config, &handle) != 0)
+    if (sh2lib_connect(&config, &handle) != 0) {
         ESP_LOGE(TAG, "failed to connect");
-    else
+        return;
+    } else
         ESP_LOGI(TAG, "connection complete");
 
     sh2lib_do_get(&handle, "/api/v2/derive/x^4", rcv_cb);
     sh2lib_do_get(&handle, "/api/v2/derive/x^3", rcv_cb);
 
-    uint64_t timestamp = esp_timer_get_time();
+    int sockfd;
+    uint64_t timestamp;
+    const uint64_t limit = 10000000;
+    if (sh2lib_get_sockfd(&handle, &sockfd) != ESP_OK) {
+        ESP_LOGE(TAG, "failed to get socket handle");
+        goto cleanup;
+    }
+
+    ESP_LOGI(TAG, "fd is %i", sockfd);
+    timestamp = esp_timer_get_time();
 
     while (streams_pending > 0) {
-        if (esp_timer_get_time() - timestamp > 10000000) {
+        int64_t remaining = limit - esp_timer_get_time() + timestamp;
+        if (remaining <= 0) {
             ESP_LOGE(TAG, "request timeout");
             break;
         }
 
-        /* Process HTTP2 send/receive */
-        if (sh2lib_execute(&handle) != 0) {
-            ESP_LOGE(TAG, "failed to process request");
+        timeval timeout = {.tv_sec = remaining / 1000000, .tv_usec = static_cast<suseconds_t>(remaining % 1000000)};
+
+        fd_set fds, fds_error;
+
+        if (nghttp2_session_want_write(handle.http2_sess)) {
+            FD_ZERO(&fds);
+            FD_ZERO(&fds_error);
+            FD_SET(sockfd, &fds);
+            FD_SET(sockfd, &fds_error);
+
+            if (select(sockfd + 1, nullptr, &fds, &fds_error, &timeout) == 0) continue;
+
+            if (nghttp2_session_send(handle.http2_sess) != 0) {
+                ESP_LOGE(TAG, "HTTP2 session send failed");
+                break;
+            }
+        } else if (nghttp2_session_want_read(handle.http2_sess)) {
+            FD_ZERO(&fds);
+            FD_ZERO(&fds_error);
+            FD_SET(sockfd, &fds);
+            FD_SET(sockfd, &fds_error);
+
+            if (select(sockfd + 1, &fds, nullptr, &fds_error, &timeout) == 0) continue;
+
+            if (nghttp2_session_recv(handle.http2_sess) != 0) {
+                ESP_LOGE(TAG, "HTTP2 session recv failed");
+                break;
+            }
+        } else {
+            ESP_LOGE(TAG, "HTTP2 session stalled");
             break;
         }
-
-        vTaskDelay(1);
     }
 
+cleanup:
     sh2lib_free(&handle);
 }
 

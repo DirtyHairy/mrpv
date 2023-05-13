@@ -263,6 +263,8 @@ int sh2lib_do_get_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_
 int sh2lib_do_putpost_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_t nvlen,
                               sh2lib_putpost_data_cb_t send_cb, sh2lib_frame_data_recv_cb_t recv_cb);
 
+esp_err_t sh2lib_get_sockfd(struct sh2lib_handle *hd, int *sockfd);
+
 #ifdef __cplusplus
 }
 #endif
