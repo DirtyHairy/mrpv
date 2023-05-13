@@ -3,6 +3,7 @@
 #include <esp_sleep.h>
 #include <esp_timer.h>
 #include <freertos/task.h>
+#include <mbedtls/sha512.h>
 #include <nvs_flash.h>
 #include <sys/select.h>
 
@@ -13,6 +14,7 @@
 #include "esp_crt_bundle.h"
 #include "network.h"
 #include "sh2lib.h"
+#include "sha512.h"
 #include "view.h"
 
 namespace {
@@ -21,7 +23,7 @@ const char *TAG = "main";
 
 enum event_bit { display_complete = 0x01, wifi_connected = 0x02, wifi_disconnected = 0x04, sntp_sync_complete = 0x08 };
 
-int streams_pending = 2;
+int streams_pending = 0;
 
 void init_nvfs() {
     esp_err_t result = nvs_flash_init();
@@ -50,11 +52,59 @@ int rcv_cb(struct sh2lib_handle *handle, int stream_id, const char *data, size_t
     return 0;
 }
 
+void request_current_power(const char *timestamp, const char *hash, sh2lib_handle *handle) {
+    char uri[128];
+    snprintf(uri, 128, "%s?sysSn=%s", AESS_API_CURRENT_POWER, AESS_SERIAL);
+
+    const nghttp2_nv nva[] = {
+        SH2LIB_MAKE_NV(":method", "GET"),
+        SH2LIB_MAKE_NV(":scheme", "https"),
+        SH2LIB_MAKE_NV(":authority", handle->hostname),
+        SH2LIB_MAKE_NV(":path", uri),
+        SH2LIB_MAKE_NV("appId", AESS_APP_ID),
+        SH2LIB_MAKE_NV("timeStamp", timestamp),
+        SH2LIB_MAKE_NV("sign", hash),
+    };
+
+    sh2lib_do_get_with_nv(handle, nva, sizeof(nva) / sizeof(nva[0]), rcv_cb);
+    streams_pending++;
+}
+
+void request_accumulated_power(const char *timestamp, const char *date, const char *hash, sh2lib_handle *handle) {
+    char uri[128];
+    snprintf(uri, 128, "%s?sysSn=%s&queryDate=%s", AESS_API_ACCUMULATED_POWER, AESS_SERIAL, date);
+
+    const nghttp2_nv nva[] = {SH2LIB_MAKE_NV(":method", "GET"),
+                              SH2LIB_MAKE_NV(":scheme", "https"),
+                              SH2LIB_MAKE_NV(":authority", handle->hostname),
+                              SH2LIB_MAKE_NV(":path", uri),
+                              SH2LIB_MAKE_NV("appId", AESS_APP_ID),
+                              SH2LIB_MAKE_NV("timeStamp", timestamp),
+                              SH2LIB_MAKE_NV("sign", hash),
+                              SH2LIB_MAKE_NV("Accept", "application/json")};
+
+    ESP_LOGI(TAG, "url %s", uri);
+    ESP_LOGI(TAG, "timestamp %s", timestamp);
+    ESP_LOGI(TAG, "hash %s", hash);
+
+    sh2lib_do_get_with_nv(handle, nva, sizeof(nva) / sizeof(nva[0]), rcv_cb);
+    streams_pending++;
+}
+
 void do_requests() {
-    sh2lib_config_t config = {.uri = "https://newton.vercel.app", .crt_bundle_attach = esp_crt_bundle_attach};
+    char current_time[16];
+    snprintf(current_time, 16, "%llu", time(nullptr));
+
+    char secret[256];
+    snprintf(secret, 256, "%s%s%s", AESS_APP_ID, AESS_SECRET, current_time);
+    const char *hash = sha512::calculate(secret, strlen(secret));
+
+    const char *date = "2023-5-13";
+
+    sh2lib_config_t config = {.uri = AESS_API_SERVER, .crt_bundle_attach = esp_crt_bundle_attach};
     sh2lib_handle handle;
 
-    ESP_LOGI(TAG, "connecting to server");
+    ESP_LOGI(TAG, "connecting to %s", AESS_API_SERVER);
 
     if (sh2lib_connect(&config, &handle) != 0) {
         ESP_LOGE(TAG, "failed to connect");
@@ -62,8 +112,8 @@ void do_requests() {
     } else
         ESP_LOGI(TAG, "connection complete");
 
-    sh2lib_do_get(&handle, "/api/v2/derive/x^4", rcv_cb);
-    sh2lib_do_get(&handle, "/api/v2/derive/x^3", rcv_cb);
+    request_current_power(current_time, hash, &handle);
+    request_accumulated_power(current_time, date, hash, &handle);
 
     int sockfd;
     uint64_t timestamp;
