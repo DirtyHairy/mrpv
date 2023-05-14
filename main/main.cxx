@@ -56,15 +56,14 @@ void request_current_power(const char *timestamp, const char *hash, sh2lib_handl
     char uri[128];
     snprintf(uri, 128, "%s?sysSn=%s", AESS_API_CURRENT_POWER, AESS_SERIAL);
 
-    const nghttp2_nv nva[] = {
-        SH2LIB_MAKE_NV(":method", "GET"),
-        SH2LIB_MAKE_NV(":scheme", "https"),
-        SH2LIB_MAKE_NV(":authority", handle->hostname),
-        SH2LIB_MAKE_NV(":path", uri),
-        SH2LIB_MAKE_NV("appId", AESS_APP_ID),
-        SH2LIB_MAKE_NV("timeStamp", timestamp),
-        SH2LIB_MAKE_NV("sign", hash),
-    };
+    const nghttp2_nv nva[] = {SH2LIB_MAKE_NV(":method", "GET"),
+                              SH2LIB_MAKE_NV(":scheme", "https"),
+                              SH2LIB_MAKE_NV(":authority", handle->hostname),
+                              SH2LIB_MAKE_NV(":path", uri),
+                              SH2LIB_MAKE_NV("appId", AESS_APP_ID),
+                              SH2LIB_MAKE_NV("timeStamp", timestamp),
+                              SH2LIB_MAKE_NV("sign", hash),
+                              SH2LIB_MAKE_NV("Accept", "application/json")};
 
     sh2lib_do_get_with_nv(handle, nva, sizeof(nva) / sizeof(nva[0]), rcv_cb);
     streams_pending++;
@@ -99,7 +98,10 @@ void do_requests() {
     snprintf(secret, 256, "%s%s%s", AESS_APP_ID, AESS_SECRET, current_time);
     const char *hash = sha512::calculate(secret, strlen(secret));
 
-    const char *date = "2023-5-13";
+    char date[11];
+    time_t timeval = time(nullptr);
+    strftime(date, 11, "%Y-%m-%d", localtime(&timeval));
+    ESP_LOGI(TAG, "date %s", date);
 
     sh2lib_config_t config = {.uri = AESS_API_SERVER, .crt_bundle_attach = esp_crt_bundle_attach};
     sh2lib_handle handle;
@@ -115,16 +117,8 @@ void do_requests() {
     request_current_power(current_time, hash, &handle);
     request_accumulated_power(current_time, date, hash, &handle);
 
-    int sockfd;
-    uint64_t timestamp;
-    const uint64_t limit = 10000000;
-    if (sh2lib_get_sockfd(&handle, &sockfd) != ESP_OK) {
-        ESP_LOGE(TAG, "failed to get socket handle");
-        goto cleanup;
-    }
-
-    ESP_LOGI(TAG, "fd is %i", sockfd);
-    timestamp = esp_timer_get_time();
+    uint64_t timestamp = esp_timer_get_time();
+    const uint64_t limit = 20000000;
 
     while (streams_pending > 0) {
         int64_t remaining = limit - esp_timer_get_time() + timestamp;
@@ -133,41 +127,12 @@ void do_requests() {
             break;
         }
 
-        timeval timeout = {.tv_sec = remaining / 1000000, .tv_usec = static_cast<suseconds_t>(remaining % 1000000)};
-
-        fd_set fds, fds_error;
-
-        if (nghttp2_session_want_write(handle.http2_sess)) {
-            FD_ZERO(&fds);
-            FD_ZERO(&fds_error);
-            FD_SET(sockfd, &fds);
-            FD_SET(sockfd, &fds_error);
-
-            if (select(sockfd + 1, nullptr, &fds, &fds_error, &timeout) == 0) continue;
-
-            if (nghttp2_session_send(handle.http2_sess) != 0) {
-                ESP_LOGE(TAG, "HTTP2 session send failed");
-                break;
-            }
-        } else if (nghttp2_session_want_read(handle.http2_sess)) {
-            FD_ZERO(&fds);
-            FD_ZERO(&fds_error);
-            FD_SET(sockfd, &fds);
-            FD_SET(sockfd, &fds_error);
-
-            if (select(sockfd + 1, &fds, nullptr, &fds_error, &timeout) == 0) continue;
-
-            if (nghttp2_session_recv(handle.http2_sess) != 0) {
-                ESP_LOGE(TAG, "HTTP2 session recv failed");
-                break;
-            }
-        } else {
-            ESP_LOGE(TAG, "HTTP2 session stalled");
+        if (sh2lib_execute_sync(&handle, remaining / 1000) != 0) {
+            ESP_LOGE(TAG, "request failed");
             break;
         }
     }
 
-cleanup:
     sh2lib_free(&handle);
 }
 

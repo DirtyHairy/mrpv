@@ -26,7 +26,7 @@
 
 #define AESS_API_SERVER "https://openapi.alphaess.com"
 #define AESS_API_CURRENT_POWER "/api/getLastPowerData"
-#define AESS_API_ACCUMULATED_POWER "/api/getSumDataForCustomer"
+#define AESS_API_ACCUMULATED_POWER "/api/getOneDateEnergyBySn"
 
 #define SPI_PIN_SCLK GPIO_NUM_13
 #define SPI_PIN_MOSI GPIO_NUM_14

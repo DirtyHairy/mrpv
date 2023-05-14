@@ -7,6 +7,7 @@
 #pragma once
 
 #include <nghttp2/nghttp2.h>
+#include <sys/time.h>
 
 #include "esp_tls.h"
 
@@ -264,6 +265,8 @@ int sh2lib_do_putpost_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, s
                               sh2lib_putpost_data_cb_t send_cb, sh2lib_frame_data_recv_cb_t recv_cb);
 
 esp_err_t sh2lib_get_sockfd(struct sh2lib_handle *hd, int *sockfd);
+
+int sh2lib_execute_sync(struct sh2lib_handle *hd, int32_t timeout);
 
 #ifdef __cplusplus
 }

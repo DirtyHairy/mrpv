@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
 #include <unistd.h>
 
 #pragma GCC diagnostic ignored "-Wformat"
@@ -359,4 +360,51 @@ int sh2lib_do_put(struct sh2lib_handle *hd, const char *path, sh2lib_putpost_dat
 
 esp_err_t sh2lib_get_sockfd(struct sh2lib_handle *hd, int *sockfd) {
     return esp_tls_get_conn_sockfd(hd->http2_tls, sockfd);
+}
+
+int sh2lib_execute_sync(struct sh2lib_handle *hd, int32_t timeout) {
+    int sockfd;
+    fd_set fds, fds_error;
+    struct timeval timeout_tv;
+
+    if (sh2lib_get_sockfd(hd, &sockfd) != ESP_OK) {
+        ESP_LOGE(TAG, "failed to get socket handle");
+        return -1;
+    }
+
+    if (timeout >= 0) {
+        timeout_tv.tv_sec = (time_t)(timeout / 1000);
+        timeout_tv.tv_usec = (suseconds_t)((timeout % 1000) * 1000);
+    }
+
+    if (nghttp2_session_want_write(hd->http2_sess)) {
+        FD_ZERO(&fds);
+        FD_ZERO(&fds_error);
+        FD_SET(sockfd, &fds);
+        FD_SET(sockfd, &fds_error);
+
+        if (select(sockfd + 1, NULL, &fds, &fds_error, timeout >= 0 ? &timeout_tv : NULL) == 0) return 0;
+
+        if (nghttp2_session_send(hd->http2_sess) != 0) {
+            ESP_LOGE(TAG, "HTTP2 session send failed");
+            return -1;
+        }
+    } else if (nghttp2_session_want_read(hd->http2_sess)) {
+        FD_ZERO(&fds);
+        FD_ZERO(&fds_error);
+        FD_SET(sockfd, &fds);
+        FD_SET(sockfd, &fds_error);
+
+        if (select(sockfd + 1, &fds, NULL, &fds_error, timeout >= 0 ? &timeout_tv : NULL) == 0) return 0;
+
+        if (nghttp2_session_recv(hd->http2_sess) != 0) {
+            ESP_LOGE(TAG, "HTTP2 session recv failed");
+            return -1;
+        }
+    } else {
+        ESP_LOGE(TAG, "HTTP2 session stalled");
+        return -1;
+    }
+
+    return 0;
 }
