@@ -70,8 +70,8 @@ struct sh2lib_config_t {
  *
  * @return The function should return 0
  */
-typedef int (*sh2lib_frame_data_recv_cb_t)(struct sh2lib_handle *handle, int stream_id, const char *data, size_t len,
-                                           int flags);
+typedef int (*sh2lib_frame_data_recv_cb_t)(struct sh2lib_handle *handle, void *context, int stream_id, const char *data,
+                                           size_t len, int flags);
 
 /**
  * @brief Function Prototype for callback to send data in PUT/POST
@@ -89,7 +89,19 @@ typedef int (*sh2lib_frame_data_recv_cb_t)(struct sh2lib_handle *handle, int str
  * @return The function should return the number of valid bytes stored in the
  * data pointer
  */
-typedef int (*sh2lib_putpost_data_cb_t)(struct sh2lib_handle *handle, char *data, size_t len, uint32_t *data_flags);
+typedef int (*sh2lib_putpost_data_cb_t)(struct sh2lib_handle *handle, void *context, int stream_id, char *data,
+                                        size_t len, uint32_t *data_flags);
+
+typedef int (*sh2lib_header_cb_t)(struct sh2lib_handle *handle, void *context, int stream_id, const char *name,
+                                  size_t name_len, const char *value, size_t value_len);
+
+struct sh2lib_callback_context_t {
+    sh2lib_frame_data_recv_cb_t frame_data_recv_cb;
+    sh2lib_putpost_data_cb_t putpost_data_cb;
+    sh2lib_header_cb_t header_cb;
+
+    void *context;
+};
 
 /**
  * @brief Connect to a URI using HTTP/2
@@ -118,71 +130,11 @@ int sh2lib_connect(struct sh2lib_config_t *cfg, struct sh2lib_handle *hd);
  */
 void sh2lib_free(struct sh2lib_handle *hd);
 
-/**
- * @brief Setup an HTTP GET request stream
- *
- * This API sets up an HTTP GET request to be sent out to the server. A new
- * stream is created for handling the request. Once the request is setup, the
- * API sh2lib_execute() must be called to actually perform the socket I/O with
- * the server.
- *
- * @param[in] hd        Pointer to a variable of the type 'struct sh2lib_handle'.
- * @param[in] path      Pointer to the string that contains the resource to
- *                      perform the HTTP GET operation on (for example, /users).
- * @param[in] recv_cb   The callback function that should be called for
- *                      processing the request's response
- *
- * @return
- *             - ESP_OK if request setup is successful
- *             - ESP_FAIL if the request setup fails
- */
-int sh2lib_do_get(struct sh2lib_handle *hd, const char *path, sh2lib_frame_data_recv_cb_t recv_cb);
+int sh2lib_do_get(struct sh2lib_handle *hd, const char *path, struct sh2lib_callback_context_t *callback_context);
 
-/**
- * @brief Setup an HTTP POST request stream
- *
- * This API sets up an HTTP POST request to be sent out to the server. A new
- * stream is created for handling the request. Once the request is setup, the
- * API sh2lib_execute() must be called to actually perform the socket I/O with
- * the server.
- *
- * @param[in] hd        Pointer to a variable of the type 'struct sh2lib_handle'.
- * @param[in] path      Pointer to the string that contains the resource to
- *                      perform the HTTP POST operation on (for example, /users).
- * @param[in] send_cb   The callback function that should be called for
- *                      sending data as part of this request.
- * @param[in] recv_cb   The callback function that should be called for
- *                      processing the request's response
- *
- * @return
- *             - ESP_OK if request setup is successful
- *             - ESP_FAIL if the request setup fails
- */
-int sh2lib_do_post(struct sh2lib_handle *hd, const char *path, sh2lib_putpost_data_cb_t send_cb,
-                   sh2lib_frame_data_recv_cb_t recv_cb);
+int sh2lib_do_post(struct sh2lib_handle *hd, const char *path, struct sh2lib_callback_context_t *callback_context);
 
-/**
- * @brief Setup an HTTP PUT request stream
- *
- * This API sets up an HTTP PUT request to be sent out to the server. A new
- * stream is created for handling the request. Once the request is setup, the
- * API sh2lib_execute() must be called to actually perform the socket I/O with
- * the server.
- *
- * @param[in] hd        Pointer to a variable of the type 'struct sh2lib_handle'.
- * @param[in] path      Pointer to the string that contains the resource to
- *                      perform the HTTP PUT operation on (for example, /users).
- * @param[in] send_cb   The callback function that should be called for
- *                      sending data as part of this request.
- * @param[in] recv_cb   The callback function that should be called for
- *                      processing the request's response
- *
- * @return
- *             - ESP_OK if request setup is successful
- *             - ESP_FAIL if the request setup fails
- */
-int sh2lib_do_put(struct sh2lib_handle *hd, const char *path, sh2lib_putpost_data_cb_t send_cb,
-                  sh2lib_frame_data_recv_cb_t recv_cb);
+int sh2lib_do_put(struct sh2lib_handle *hd, const char *path, struct sh2lib_callback_context_t *callback_context);
 
 /**
  * @brief Execute send/receive on an HTTP/2 connection
@@ -203,66 +155,11 @@ int sh2lib_execute(struct sh2lib_handle *hd);
 #define SH2LIB_MAKE_NV(NAME, VALUE) \
     { (uint8_t *)NAME, (uint8_t *)VALUE, strlen(NAME), strlen(VALUE), NGHTTP2_NV_FLAG_NONE }
 
-/**
- * @brief Setup an HTTP GET request stream with custom name-value pairs
- *
- * For a simpler version of the API, please refer to sh2lib_do_get().
- *
- * This API sets up an HTTP GET request to be sent out to the server. A new
- * stream is created for handling the request. Once the request is setup, the
- * API sh2lib_execute() must be called to actually perform the socket I/O with
- * the server.
- *
- * Please note that the following name value pairs MUST be a part of the request
- *     -  name:value
- *     -  ":method":"GET"
- *     -  ":scheme":"https"
- *     -  ":path":<the-path-for-the-GET-operation>  (for example, /users)
- *
- * @param[in] hd        Pointer to a variable of the type 'struct sh2lib_handle'.
- * @param[in] nva       An array of name-value pairs that should be part of the request.
- * @param[in] nvlen     The number of elements in the array pointed to by 'nva'.
- * @param[in] recv_cb   The callback function that should be called for
- *                      processing the request's response
- *
- * @return
- *             - ESP_OK if request setup is successful
- *             - ESP_FAIL if the request setup fails
- */
 int sh2lib_do_get_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_t nvlen,
-                          sh2lib_frame_data_recv_cb_t recv_cb);
+                          struct sh2lib_callback_context_t *callback_context);
 
-/**
- * @brief Setup an HTTP PUT/POST request stream with custom name-value pairs
- *
- * For a simpler version of the API, please refer to sh2lib_do_put() or
- * sh2lib_do_post().
- *
- * This API sets up an HTTP PUT/POST request to be sent out to the server. A new
- * stream is created for handling the request. Once the request is setup, the
- * API sh2lib_execute() must be called to actually perform the socket I/O with
- * the server.
- *
- * Please note that the following name value pairs MUST be a part of the request
- *     -  name:value
- *     -  ":method":"PUT" (or POST)
- *     -  ":scheme":"https"
- *     -  ":path":<the-path-for-the-PUT-operation>  (for example, /users)
- *
- * @param[in] hd        Pointer to a variable of the type 'struct sh2lib_handle'.
- * @param[in] nva       An array of name-value pairs that should be part of the request.
- * @param[in] nvlen     The number of elements in the array pointed to by 'nva'.
- * @param[in] send_cb   The callback function that should be called for
- *                      sending data as part of this request.
- * @param[in] recv_cb   The callback function that should be called for
- *                      processing the request's response
- *
- * @return
- *             - ESP_OK if request setup is successful
- *             - ESP_FAIL if the request setup fails
- */
 int sh2lib_do_putpost_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_t nvlen,
-                              sh2lib_putpost_data_cb_t send_cb, sh2lib_frame_data_recv_cb_t recv_cb);
+                              struct sh2lib_callback_context_t *callback_context);
 
 esp_err_t sh2lib_get_sockfd(struct sh2lib_handle *hd, int *sockfd);
 

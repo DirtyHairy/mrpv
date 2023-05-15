@@ -144,36 +144,37 @@ static int callback_on_frame_recv(nghttp2_session *session, const nghttp2_frame 
         return 0;
     }
     /* Subsequent processing only for data frame */
-    sh2lib_frame_data_recv_cb_t data_recv_cb = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
-    if (data_recv_cb) {
+    struct sh2lib_callback_context_t *callback_context =
+        nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
+    if (callback_context->frame_data_recv_cb) {
         struct sh2lib_handle *h2 = user_data;
-        (*data_recv_cb)(h2, 0, NULL, 0, DATA_RECV_FRAME_COMPLETE);
+        (*callback_context->frame_data_recv_cb)(h2, callback_context->context, 0, NULL, 0, DATA_RECV_FRAME_COMPLETE);
     }
     return 0;
 }
 
 static int callback_on_stream_close(nghttp2_session *session, int32_t stream_id, uint32_t error_code, void *user_data) {
     ESP_LOGD(TAG, "[stream-close][sid %d]", stream_id);
-    sh2lib_frame_data_recv_cb_t data_recv_cb = nghttp2_session_get_stream_user_data(session, stream_id);
-    if (data_recv_cb) {
+    struct sh2lib_callback_context_t *callback_context = nghttp2_session_get_stream_user_data(session, stream_id);
+    if (callback_context->frame_data_recv_cb) {
         struct sh2lib_handle *h2 = user_data;
-        (*data_recv_cb)(h2, stream_id, NULL, 0, DATA_RECV_RST_STREAM);
+        (*callback_context->frame_data_recv_cb)(h2, callback_context->context, stream_id, NULL, 0,
+                                                DATA_RECV_RST_STREAM);
     }
     return 0;
 }
 
 static int callback_on_data_chunk_recv(nghttp2_session *session, uint8_t flags, int32_t stream_id, const uint8_t *data,
                                        size_t len, void *user_data) {
-    sh2lib_frame_data_recv_cb_t data_recv_cb;
     ESP_LOGD(TAG, "[data-chunk][sid:%d]", stream_id);
-    data_recv_cb = nghttp2_session_get_stream_user_data(session, stream_id);
-    if (data_recv_cb) {
+    struct sh2lib_callback_context_t *callback_context = nghttp2_session_get_stream_user_data(session, stream_id);
+    if (callback_context->frame_data_recv_cb) {
         ESP_LOGD(TAG,
                  "[data-chunk] C <---------------------------- S (DATA chunk)"
                  "%lu bytes",
                  (unsigned long int)len);
         struct sh2lib_handle *h2 = user_data;
-        (*data_recv_cb)(h2, stream_id, (char *)data, len, 0);
+        (*callback_context->frame_data_recv_cb)(h2, callback_context->context, stream_id, (char *)data, len, 0);
         /* TODO: What to do with the return value: look for pause/abort */
     }
     return 0;
@@ -181,7 +182,14 @@ static int callback_on_data_chunk_recv(nghttp2_session *session, uint8_t flags, 
 
 static int callback_on_header(nghttp2_session *session, const nghttp2_frame *frame, const uint8_t *name, size_t namelen,
                               const uint8_t *value, size_t valuelen, uint8_t flags, void *user_data) {
-    ESP_LOGD(TAG, "[hdr-recv][sid:%d] %s : %s", frame->hd.stream_id, name, value);
+    struct sh2lib_callback_context_t *callback_context =
+        nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
+
+    if (callback_context->header_cb) {
+        (*callback_context->header_cb)((struct sh2lib_handle *)user_data, callback_context->context,
+                                       frame->hd.stream_id, (const char *)name, namelen, (const char *)value, valuelen);
+    }
+
     return 0;
 }
 
@@ -297,8 +305,8 @@ int sh2lib_execute(struct sh2lib_handle *hd) {
 }
 
 int sh2lib_do_get_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_t nvlen,
-                          sh2lib_frame_data_recv_cb_t recv_cb) {
-    int ret = nghttp2_submit_request(hd->http2_sess, NULL, nva, nvlen, NULL, recv_cb);
+                          struct sh2lib_callback_context_t *callback_context) {
+    int ret = nghttp2_submit_request(hd->http2_sess, NULL, nva, nvlen, NULL, (void *)callback_context);
     if (ret < 0) {
         ESP_LOGE(TAG, "[sh2-do-get] HEADERS call failed");
         return -1;
@@ -306,29 +314,30 @@ int sh2lib_do_get_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_
     return ret;
 }
 
-int sh2lib_do_get(struct sh2lib_handle *hd, const char *path, sh2lib_frame_data_recv_cb_t recv_cb) {
+int sh2lib_do_get(struct sh2lib_handle *hd, const char *path, struct sh2lib_callback_context_t *callback_context) {
     const nghttp2_nv nva[] = {
         SH2LIB_MAKE_NV(":method", "GET"),
         SH2LIB_MAKE_NV(":scheme", "https"),
         SH2LIB_MAKE_NV(":authority", hd->hostname),
         SH2LIB_MAKE_NV(":path", path),
     };
-    return sh2lib_do_get_with_nv(hd, nva, sizeof(nva) / sizeof(nva[0]), recv_cb);
+    return sh2lib_do_get_with_nv(hd, nva, sizeof(nva) / sizeof(nva[0]), (void *)callback_context);
 }
 
 ssize_t sh2lib_data_provider_cb(nghttp2_session *session, int32_t stream_id, uint8_t *buf, size_t length,
                                 uint32_t *data_flags, nghttp2_data_source *source, void *user_data) {
     struct sh2lib_handle *h2 = user_data;
-    sh2lib_putpost_data_cb_t data_cb = source->ptr;
-    return (*data_cb)(h2, (char *)buf, length, data_flags);
+    struct sh2lib_callback_context_t *callback_context = source->ptr;
+    return (*callback_context->putpost_data_cb)(h2, callback_context->context, stream_id, (char *)buf, length,
+                                                data_flags);
 }
 
 int sh2lib_do_putpost_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, size_t nvlen,
-                              sh2lib_putpost_data_cb_t send_cb, sh2lib_frame_data_recv_cb_t recv_cb) {
+                              struct sh2lib_callback_context_t *callback_context) {
     nghttp2_data_provider sh2lib_data_provider;
     sh2lib_data_provider.read_callback = sh2lib_data_provider_cb;
-    sh2lib_data_provider.source.ptr = send_cb;
-    int ret = nghttp2_submit_request(hd->http2_sess, NULL, nva, nvlen, &sh2lib_data_provider, recv_cb);
+    sh2lib_data_provider.source.ptr = (void *)callback_context;
+    int ret = nghttp2_submit_request(hd->http2_sess, NULL, nva, nvlen, &sh2lib_data_provider, (void *)callback_context);
     if (ret < 0) {
         ESP_LOGE(TAG, "[sh2-do-putpost] HEADERS call failed");
         return -1;
@@ -336,26 +345,24 @@ int sh2lib_do_putpost_with_nv(struct sh2lib_handle *hd, const nghttp2_nv *nva, s
     return ret;
 }
 
-int sh2lib_do_post(struct sh2lib_handle *hd, const char *path, sh2lib_putpost_data_cb_t send_cb,
-                   sh2lib_frame_data_recv_cb_t recv_cb) {
+int sh2lib_do_post(struct sh2lib_handle *hd, const char *path, struct sh2lib_callback_context_t *callback_context) {
     const nghttp2_nv nva[] = {
         SH2LIB_MAKE_NV(":method", "POST"),
         SH2LIB_MAKE_NV(":scheme", "https"),
         SH2LIB_MAKE_NV(":authority", hd->hostname),
         SH2LIB_MAKE_NV(":path", path),
     };
-    return sh2lib_do_putpost_with_nv(hd, nva, sizeof(nva) / sizeof(nva[0]), send_cb, recv_cb);
+    return sh2lib_do_putpost_with_nv(hd, nva, sizeof(nva) / sizeof(nva[0]), callback_context);
 }
 
-int sh2lib_do_put(struct sh2lib_handle *hd, const char *path, sh2lib_putpost_data_cb_t send_cb,
-                  sh2lib_frame_data_recv_cb_t recv_cb) {
+int sh2lib_do_put(struct sh2lib_handle *hd, const char *path, struct sh2lib_callback_context_t *callback_context) {
     const nghttp2_nv nva[] = {
         SH2LIB_MAKE_NV(":method", "PUT"),
         SH2LIB_MAKE_NV(":scheme", "https"),
         SH2LIB_MAKE_NV(":authority", hd->hostname),
         SH2LIB_MAKE_NV(":path", path),
     };
-    return sh2lib_do_putpost_with_nv(hd, nva, sizeof(nva) / sizeof(nva[0]), send_cb, recv_cb);
+    return sh2lib_do_putpost_with_nv(hd, nva, sizeof(nva) / sizeof(nva[0]), callback_context);
 }
 
 esp_err_t sh2lib_get_sockfd(struct sh2lib_handle *hd, int *sockfd) {

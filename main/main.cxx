@@ -35,7 +35,7 @@ void init_nvfs() {
     ESP_ERROR_CHECK(result);
 }
 
-int rcv_cb(struct sh2lib_handle *handle, int stream_id, const char *data, size_t len, int flags) {
+int rcv_cb(struct sh2lib_handle *handle, void *context, int stream_id, const char *data, size_t len, int flags) {
     switch (flags) {
         case DATA_RECV_RST_STREAM:
             ESP_LOGI(TAG, "stream %i closed", stream_id);
@@ -52,6 +52,15 @@ int rcv_cb(struct sh2lib_handle *handle, int stream_id, const char *data, size_t
     return 0;
 }
 
+int header_cb(struct sh2lib_handle *handle, void *context, int stream_id, const char *name, size_t name_len,
+              const char *value, size_t value_len) {
+    ESP_LOGI(TAG, "got header on stream %i: %s = %s", stream_id, name, value);
+
+    return 0;
+}
+
+struct sh2lib_callback_context_t callback_context = {.frame_data_recv_cb = rcv_cb, .header_cb = header_cb};
+
 void request_current_power(const char *timestamp, const char *hash, sh2lib_handle *handle) {
     char uri[128];
     snprintf(uri, 128, "%s?sysSn=%s", AESS_API_CURRENT_POWER, AESS_SERIAL);
@@ -65,7 +74,7 @@ void request_current_power(const char *timestamp, const char *hash, sh2lib_handl
                               SH2LIB_MAKE_NV("sign", hash),
                               SH2LIB_MAKE_NV("Accept", "application/json")};
 
-    sh2lib_do_get_with_nv(handle, nva, sizeof(nva) / sizeof(nva[0]), rcv_cb);
+    sh2lib_do_get_with_nv(handle, nva, sizeof(nva) / sizeof(nva[0]), &callback_context);
     streams_pending++;
 }
 
@@ -86,7 +95,7 @@ void request_accumulated_power(const char *timestamp, const char *date, const ch
     ESP_LOGI(TAG, "timestamp %s", timestamp);
     ESP_LOGI(TAG, "hash %s", hash);
 
-    sh2lib_do_get_with_nv(handle, nva, sizeof(nva) / sizeof(nva[0]), rcv_cb);
+    sh2lib_do_get_with_nv(handle, nva, sizeof(nva) / sizeof(nva[0]), &callback_context);
     streams_pending++;
 }
 
