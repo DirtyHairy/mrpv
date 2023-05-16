@@ -117,7 +117,7 @@ struct sh2lib_callback_context_t {
  *             - ESP_OK if the connection was successful
  *             - ESP_FAIL if the connection fails
  */
-int sh2lib_connect(struct sh2lib_config_t *cfg, struct sh2lib_handle *hd);
+int sh2lib_connect(struct sh2lib_config_t *cfg, struct sh2lib_handle *hd, uint32_t timeout);
 
 /**
  * @brief Free a sh2lib handle

@@ -14,7 +14,9 @@ idf_component_register(SRCS
     "view.cxx"
     "display_task.cxx"
     "network.cxx"
-    "sh2lib.c"
+    "http2/sh2lib.c"
+    "http2/http2_request.cxx"
+    "http2/http2_connection.cxx"
     "sha512.cxx"
     INCLUDE_DIRS ".")
 

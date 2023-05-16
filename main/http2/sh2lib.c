@@ -221,7 +221,7 @@ static int do_http2_connect(struct sh2lib_handle *hd) {
     return 0;
 }
 
-int sh2lib_connect(struct sh2lib_config_t *cfg, struct sh2lib_handle *hd) {
+int sh2lib_connect(struct sh2lib_config_t *cfg, struct sh2lib_handle *hd, uint32_t timeout) {
     memset(hd, 0, sizeof(*hd));
 
     if (cfg == NULL) {
@@ -236,7 +236,7 @@ int sh2lib_connect(struct sh2lib_config_t *cfg, struct sh2lib_handle *hd) {
         .cacert_bytes = cfg->cacert_bytes,
         .crt_bundle_attach = cfg->crt_bundle_attach,
         .non_block = true,
-        .timeout_ms = 10 * 1000,
+        .timeout_ms = timeout,
     };
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
