@@ -5,7 +5,7 @@
 // clang-format off
 #include "freertos/FreeRTOS.h"
 // clang-format on
-#include "display_driver.h"
+#include "display/display_driver.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"

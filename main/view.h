@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-#include "adagfx.h"
+#include "display/adagfx.h"
 
 namespace view {
 

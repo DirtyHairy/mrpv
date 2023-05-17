@@ -9,8 +9,8 @@
 #include <string>
 
 #include "config.h"
-#include "font.h"
-#include "icon.h"
+#include "display/font.h"
+#include "display/icon.h"
 
 using namespace std;
 
