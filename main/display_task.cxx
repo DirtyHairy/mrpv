@@ -55,8 +55,8 @@ void display_task::start() {
     xTaskCreate(task_main, "display_task", 4096, nullptr, 10, &task_handle);
 }
 
-void display_task::display(const view::model_t& model) {
-    xQueueSend(queue_handle, &model, portMAX_DELAY);
+void display_task::display(const view::model_t& model) { xQueueSend(queue_handle, &model, portMAX_DELAY); }
 
+void display_task::wait() {
     xEventGroupWaitBits(event_group_handle, event_bit::display_complete, pdTRUE, pdFAIL, portMAX_DELAY);
 }

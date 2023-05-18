@@ -9,6 +9,8 @@ void start();
 
 void display(const view::model_t& model);
 
+void wait();
+
 }  // namespace display_task
 
 #endif  // _DISPLAY_TASK_H_

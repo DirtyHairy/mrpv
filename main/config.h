@@ -27,6 +27,11 @@
 #define AESS_API_SERVER "https://openapi.alphaess.com"
 #define AESS_API_CURRENT_POWER "/api/getLastPowerData"
 #define AESS_API_ACCUMULATED_POWER "/api/getOneDateEnergyBySn"
+#define AESS_API_ERROR_RATE_LIMIT 6053
+#define AESS_API_OK 200
+
+#define CONNECTION_TIMEOUT_MSEC 20000
+#define REQUEST_TIMEOUT_MSEC 20000
 
 #define SPI_PIN_SCLK GPIO_NUM_13
 #define SPI_PIN_MOSI GPIO_NUM_14

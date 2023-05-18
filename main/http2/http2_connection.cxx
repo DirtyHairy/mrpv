@@ -18,21 +18,16 @@ int Http2Connection::receive_cb(struct sh2lib_handle* handle, void* context, int
                                 size_t len, int flags) {
     Http2Request* request = reinterpret_cast<Http2Request*>(context);
 
-    switch (flags) {
-        case DATA_RECV_RST_STREAM:
-            request->state = Http2Request::State::complete;
-            request->connection->pending_streams--;
-            break;
+    const size_t bytes_to_copy = min(len, request->max_len - request->len - 1);
+    if (bytes_to_copy < len) ESP_LOGE(TAG, "request buffer overflow on stream %i", stream_id);
 
-        case 0: {
-            const size_t bytes_to_copy = min(len, request->max_len - request->len);
-            if (bytes_to_copy < len) ESP_LOGE(TAG, "request buffer overflow on stream %i", stream_id);
+    memcpy(request->data.get() + request->len, data, bytes_to_copy);
+    request->len += bytes_to_copy;
 
-            memcpy(request->data.get() + request->len, data, bytes_to_copy);
-            request->len += bytes_to_copy;
-
-            break;
-        }
+    if (flags == DATA_RECV_RST_STREAM) {
+        request->state = Http2Request::State::complete;
+        request->data[request->len] = '\0';
+        request->connection->pending_streams--;
     }
 
     return 0;
@@ -52,12 +47,12 @@ int Http2Connection::header_cb(struct sh2lib_handle* handle, void* context, int 
     return 0;
 }
 
-Http2Connection::Http2Connection(const char* uri) : uri(uri) {}
+Http2Connection::Http2Connection(const char* server_url) : server_url(server_url) {}
 
 Http2Connection::Status Http2Connection::connect(uint32_t timeout) {
-    sh2lib_config_t config = {.uri = uri, .crt_bundle_attach = esp_crt_bundle_attach};
+    sh2lib_config_t config = {.uri = server_url, .crt_bundle_attach = esp_crt_bundle_attach};
 
-    ESP_LOGI(TAG, "connecting to %s", uri);
+    ESP_LOGI(TAG, "connecting to %s", server_url);
 
     if (sh2lib_connect(&config, &handle, timeout) != ESP_OK) return Status::failed;
 

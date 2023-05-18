@@ -3,26 +3,19 @@
 #include <esp_sleep.h>
 #include <esp_timer.h>
 #include <freertos/task.h>
-#include <mbedtls/sha512.h>
 #include <nvs_flash.h>
-#include <sys/select.h>
 
 #include <cstring>
 
+#include "api.h"
 #include "config.h"
 #include "display_task.h"
-#include "esp_crt_bundle.h"
-#include "http2/http2_connection.h"
-#include "http2/sh2lib.h"
 #include "network.h"
-#include "sha512.h"
 #include "view.h"
 
 namespace {
 
-const char *TAG = "main";
-
-enum event_bit { display_complete = 0x01, wifi_connected = 0x02, wifi_disconnected = 0x04, sntp_sync_complete = 0x08 };
+const char* TAG = "main";
 
 void init_nvfs() {
     esp_err_t result = nvs_flash_init();
@@ -32,52 +25,6 @@ void init_nvfs() {
     }
 
     ESP_ERROR_CHECK(result);
-}
-
-void do_requests() {
-    char current_time[16];
-    snprintf(current_time, 16, "%llu", time(nullptr));
-
-    char secret[256];
-    snprintf(secret, 256, "%s%s%s", AESS_APP_ID, AESS_SECRET, current_time);
-    const char *hash = sha512::calculate(secret, strlen(secret));
-
-    char date[11];
-    time_t timeval = time(nullptr);
-    strftime(date, 11, "%Y-%m-%d", localtime(&timeval));
-
-    Http2Connection connection(AESS_API_SERVER);
-    if (connection.connect(10000) != Http2Connection::Status::done) {
-        ESP_LOGE(TAG, "connection failed");
-        return;
-    }
-
-    Http2Request request_current_power(2048);
-    Http2Request request_accumulated_power(2048);
-
-    const Http2Header headers[] = {{.name = "appId", .value = AESS_APP_ID},
-                                   {.name = "timeStamp", .value = current_time},
-                                   {.name = "sign", .value = hash},
-                                   {.name = "Accept", .value = "application/json"}};
-
-    char uri[128];
-
-    snprintf(uri, 128, "%s?sysSn=%s", AESS_API_CURRENT_POWER, AESS_SERIAL);
-    connection.addRequest(uri, &request_current_power, headers, 4);
-
-    snprintf(uri, 128, "%s?sysSn=%s&queryDate=%s", AESS_API_ACCUMULATED_POWER, AESS_SERIAL, date);
-    connection.addRequest(uri, &request_accumulated_power, headers, 4);
-
-    if (connection.executePendingRequests(20000) != Http2Connection::Status::done) {
-        ESP_LOGE(TAG, "requests failed");
-    } else {
-        ESP_LOGI(TAG, "%li %s %s", request_current_power.getHttpStatus(), request_current_power.getDate(),
-                 request_current_power.getData());
-        ESP_LOGI(TAG, "%li %s %s", request_accumulated_power.getHttpStatus(), request_accumulated_power.getDate(),
-                 request_accumulated_power.getData());
-    }
-
-    connection.disconnect();
 }
 
 }  // namespace
@@ -97,9 +44,19 @@ void run() {
         return;
     }
 
-    do_requests();
-
-    network::stop();
+    if (api::perform_request() == api::connection_status_t::ok) {
+        if (api::get_current_power_request_status() == api::request_status_t::ok) {
+            api::current_power_response_t& response = api::get_current_power_response();
+            ESP_LOGI(TAG, "ppv = %f | pload = %f | soc = %f | pgrid = %f | pbat = %f", response.ppv, response.pload,
+                     response.soc, response.pgrid, response.pbat);
+        }
+        if (api::get_accumulated_power_request_status() == api::request_status_t::ok) {
+            api::accumulated_power_response_t& response = api::get_accumulated_power_response();
+            ESP_LOGI(TAG, "eCharge = %f | eDischarge = %f | eGridCharge = %f | eInput = %f | eOutput = %f | epv = %f",
+                     response.eCharge, response.eDischarge, response.eGridCharge, response.eInput, response.eOutput,
+                     response.epv);
+        }
+    }
 
     view::model_t model = {.connection_status = view::connection_status_t::online,
                            .battery_status = view::battery_status_t::full,
@@ -116,6 +73,8 @@ void run() {
     strcpy(model.error_message, "no connection to API");
 
     display_task::display(model);
+    network::stop();
+    display_task::wait();
 }
 
 extern "C" void app_main(void) {

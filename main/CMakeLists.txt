@@ -15,9 +15,10 @@ idf_component_register(SRCS
     "display_task.cxx"
     "network.cxx"
     "http2/sh2lib.c"
+    "sha512.cxx"
+    "api.cxx"
     "http2/http2_request.cxx"
     "http2/http2_connection.cxx"
-    "sha512.cxx"
     INCLUDE_DIRS ".")
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)

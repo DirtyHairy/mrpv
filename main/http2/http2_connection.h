@@ -17,7 +17,7 @@ class Http2Connection {
     enum class Status { failed, done, timeout };
 
    public:
-    Http2Connection(const char* uri);
+    Http2Connection(const char* server_url);
 
     Status connect(uint32_t timeout);
     void disconnect();
@@ -33,7 +33,7 @@ class Http2Connection {
                          const char* value, size_t value_len);
 
    private:
-    const char* uri;
+    const char* server_url;
 
     bool connected{false};
     sh2lib_handle handle;
