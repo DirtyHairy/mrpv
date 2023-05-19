@@ -142,8 +142,6 @@ void update_view() {
 
         ESP_LOGI(TAG, "ppv = %f | pload = %f | soc = %f | pgrid = %f | pbat = %f", response.ppv, response.pload,
                  response.soc, response.pgrid, response.pbat);
-
-        set_date_from_header(api::get_date_from_request());
     } else {
         api_error << "live data: " << describe_request_error(status_current_power);
         current_view.connection_status = view::connection_status_t::error;
@@ -152,6 +150,8 @@ void update_view() {
         current_view.load_w = -1;
         current_view.charge = -1;
     }
+
+    if (status_current_power != api::request_status_t::timeout) set_date_from_header(api::get_date_from_request());
 
     if (status_accumulated_power == api::request_status_t::ok) {
         api::accumulated_power_response_t& response = api::get_accumulated_power_response();
