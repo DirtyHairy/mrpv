@@ -16,20 +16,20 @@ struct model_t {
     battery_status_t battery_status;
     bool charging;
 
-    char error_message[64];
+    char error_message[128];
 
     uint64_t epoch;
 
-    float power_pv;
-    float power_pv_accumulated;
+    float power_pv_w;
+    float power_pv_accumulated_kwh;
 
-    float load;
-    float load_accumulated;
+    float load_w;
+    float load_accumulated_kwh;
 
-    float power_surplus_accumulated;
-    float power_network_accumulated;
+    float power_surplus_accumulated_kwh;
+    float power_network_accumulated_kwh;
 
-    uint32_t charge;
+    int32_t charge;
 };
 
 void render(Adafruit_GFX& gfx, const model_t& model);

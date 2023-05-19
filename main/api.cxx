@@ -47,7 +47,10 @@ const char* get_date() {
     return date;
 }
 
-cJSON* deserialize_response(const uint8_t* serialized_json, api::request_status_t& status, const char* endpoint) {
+cJSON* deserialize_response(const uint8_t* serialized_json, cJSON*& data, api::request_status_t& status,
+                            const char* endpoint) {
+    data = nullptr;
+
     cJSON* json = cJSON_Parse(reinterpret_cast<const char*>(serialized_json));
     if (!json) {
         ESP_LOGE(TAG, "invalid response - bad JSON: %s", serialized_json);
@@ -76,21 +79,24 @@ cJSON* deserialize_response(const uint8_t* serialized_json, api::request_status_
         status = api::request_status_t::api_error;
     }
 
+    data = cJSON_GetObjectItemCaseSensitive(json, "data");
+    if (!cJSON_IsObject(data)) {
+        ESP_LOGE(TAG, "invalid response - no payload: %s", serialized_json);
+        status = api::request_status_t::invalid_response;
+        data = nullptr;
+
+        return json;
+    }
+
     return json;
 }
 
 void deserialize_current_power(const uint8_t* serialized_json) {
-    cJSON* json = deserialize_response(serialized_json, request_status_current_power, AESS_API_CURRENT_POWER);
-    if (!json || request_status_accumulated_power != api::request_status_t::ok) return;
+    cJSON* data = nullptr;
+    cJSON* json = deserialize_response(serialized_json, data, request_status_current_power, AESS_API_CURRENT_POWER);
+    if (!json || !data || request_status_accumulated_power != api::request_status_t::ok) return;
 
     Defer deallocate_json([&]() { cJSON_Delete(json); });
-
-    cJSON* data = cJSON_GetObjectItemCaseSensitive(json, "data");
-    if (!cJSON_IsObject(data)) {
-        ESP_LOGE(TAG, "invalid response - no payload: %s", serialized_json);
-        request_status_current_power = api::request_status_t::invalid_response;
-        return;
-    }
 
     cJSON* ppv = cJSON_GetObjectItemCaseSensitive(data, "ppv");
     cJSON* pload = cJSON_GetObjectItemCaseSensitive(data, "pload");
@@ -105,25 +111,20 @@ void deserialize_current_power(const uint8_t* serialized_json) {
         return;
     }
 
-    current_power_response = {.ppv = cJSON_GetNumberValue(ppv),
-                              .pload = cJSON_GetNumberValue(pload),
-                              .soc = cJSON_GetNumberValue(soc),
-                              .pgrid = cJSON_GetNumberValue(pgrid),
-                              .pbat = cJSON_GetNumberValue(pbat)};
+    current_power_response = {.ppv = static_cast<float>(cJSON_GetNumberValue(ppv)),
+                              .pload = static_cast<float>(cJSON_GetNumberValue(pload)),
+                              .soc = static_cast<float>(cJSON_GetNumberValue(soc)),
+                              .pgrid = static_cast<float>(cJSON_GetNumberValue(pgrid)),
+                              .pbat = static_cast<float>(cJSON_GetNumberValue(pbat))};
 }
 
 void deserialize_accumulated_power(const uint8_t* serialized_json) {
-    cJSON* json = deserialize_response(serialized_json, request_status_accumulated_power, AESS_API_ACCUMULATED_POWER);
-    if (!json || request_status_accumulated_power != api::request_status_t::ok) return;
+    cJSON* data = nullptr;
+    cJSON* json =
+        deserialize_response(serialized_json, data, request_status_accumulated_power, AESS_API_ACCUMULATED_POWER);
+    if (!json || !data || request_status_accumulated_power != api::request_status_t::ok) return;
 
     Defer deallocate_json([&]() { cJSON_Delete(json); });
-
-    cJSON* data = cJSON_GetObjectItemCaseSensitive(json, "data");
-    if (!cJSON_IsObject(data)) {
-        ESP_LOGE(TAG, "invalid response - no payload: %s", serialized_json);
-        request_status_current_power = api::request_status_t::invalid_response;
-        return;
-    }
 
     cJSON* eCharge = cJSON_GetObjectItemCaseSensitive(data, "eCharge");
     cJSON* eDischarge = cJSON_GetObjectItemCaseSensitive(data, "eDischarge");
@@ -139,18 +140,23 @@ void deserialize_accumulated_power(const uint8_t* serialized_json) {
         return;
     }
 
-    accumulated_power_response = {.eCharge = cJSON_GetNumberValue(eCharge),
-                                  .eDischarge = cJSON_GetNumberValue(eDischarge),
-                                  .eGridCharge = cJSON_GetNumberValue(eGridCharge),
-                                  .eInput = cJSON_GetNumberValue(eInput),
-                                  .eOutput = cJSON_GetNumberValue(eOutput),
-                                  .epv = cJSON_GetNumberValue(epv)};
+    accumulated_power_response = {.eCharge = static_cast<float>(cJSON_GetNumberValue(eCharge)),
+                                  .eDischarge = static_cast<float>(cJSON_GetNumberValue(eDischarge)),
+                                  .eGridCharge = static_cast<float>(cJSON_GetNumberValue(eGridCharge)),
+                                  .eInput = static_cast<float>(cJSON_GetNumberValue(eInput)),
+                                  .eOutput = static_cast<float>(cJSON_GetNumberValue(eOutput)),
+                                  .epv = static_cast<float>(cJSON_GetNumberValue(epv))};
+}
+
+void set_request_status(api::request_status_t status) {
+    request_status_accumulated_power = status;
+    request_status_current_power = status;
 }
 
 }  // namespace
 
 api::connection_status_t api::perform_request() {
-    request_status_accumulated_power = request_status_current_power = request_status_t::pending;
+    set_request_status(request_status_t::pending);
 
     const char* timestamp = get_timestamp();
     const char* secret = calculate_secret(timestamp);
@@ -203,7 +209,7 @@ api::connection_status_t api::perform_request() {
             break;
     }
 
-    request_status_accumulated_power = request_status_current_power = request_status_t::ok;
+    set_request_status(request_status_t::ok);
 
     if (request_current_power.getHttpStatus() != 200) {
         ESP_LOGE(TAG, "GET for %s failed with HTTP status %li", AESS_API_CURRENT_POWER,

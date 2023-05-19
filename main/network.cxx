@@ -96,7 +96,7 @@ network::result_t network::start() {
 
     EventBits_t bits;
     bits = xEventGroupWaitBits(event_group_handle, event_bit::wifi_connected | event_bit::wifi_disconnected, pdTRUE,
-                               pdFALSE, 10000 / portTICK_PERIOD_MS);
+                               pdFALSE, WIFI_TIMEOUT_MSEC / portTICK_PERIOD_MS);
 
     if ((bits & event_bit::wifi_disconnected) != 0) return result_t::wifi_disconnected;
 
@@ -105,7 +105,7 @@ network::result_t network::start() {
     ntp_sync_start();
 
     bits = xEventGroupWaitBits(event_group_handle, event_bit::sntp_sync_complete, pdTRUE, pdFAIL,
-                               10000 / portTICK_PERIOD_MS);
+                               NTP_TIMEOUT_MSEC / portTICK_PERIOD_MS);
 
     if ((bits & event_bit::sntp_sync_complete) == 0) return result_t::sntp_timeout;
 

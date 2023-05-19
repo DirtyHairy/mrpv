@@ -1,5 +1,4 @@
 idf_component_register(SRCS
-    "main.cxx"
     "display/display_driver.cxx"
     "display/adagfx.cxx"
     "display/font/FreeSerif24pt7b.cxx"
@@ -11,14 +10,20 @@ idf_component_register(SRCS
     "display/font/FreeSerif9pt7b.cxx"
     "display/font/FreeSans9pt7b.cxx"
     "display/icon.cxx"
+
+    "http2/sh2lib.c"
+    "http2/http2_request.cxx"
+    "http2/http2_connection.cxx"
+
     "view.cxx"
     "display_task.cxx"
     "network.cxx"
-    "http2/sh2lib.c"
     "sha512.cxx"
     "api.cxx"
-    "http2/http2_request.cxx"
-    "http2/http2_connection.cxx"
+    "persistence.cxx"
+
+    "main.cxx"
+
     INCLUDE_DIRS ".")
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)

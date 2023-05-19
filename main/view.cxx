@@ -52,17 +52,23 @@ const char* format_time(uint64_t timestamp) {
 }
 
 const char* format_power(const char* label, float power_w) {
+    if (power_w < 0) return "-";
+
     snprintf(string_buffer, STRING_BUFFER_SIZE, "%s: %.0fW", label, power_w);
     return string_buffer;
 }
 
-const char* format_accumulated_power(const char* label, float accumulated_power_wh) {
-    snprintf(string_buffer, STRING_BUFFER_SIZE, "%s: %.1fkWh", label, accumulated_power_wh / 1000.);
+const char* format_accumulated_power_kwh(const char* label, float accumulated_power_kwh) {
+    if (accumulated_power_kwh < 0) return "-";
+
+    snprintf(string_buffer, STRING_BUFFER_SIZE, "%s: %.1fkWh", label, accumulated_power_kwh);
     return string_buffer;
 }
 
-const char* format_charge(uint32_t charge) {
-    snprintf(string_buffer, STRING_BUFFER_SIZE, "%lu%%", min(charge, static_cast<uint32_t>(100)));
+const char* format_charge(int32_t charge) {
+    if (charge < 0) return "-";
+
+    snprintf(string_buffer, STRING_BUFFER_SIZE, "%lu%%", min(charge, static_cast<int32_t>(100)));
     return string_buffer;
 }
 
@@ -154,20 +160,20 @@ void view::render(Adafruit_GFX& gfx, const model_t& model) {
     }
 
     gfx.setFont(&font::freeSans18pt7b);
-    gfx.write(0, 68, format_power(LABEL_PV, model.power_pv));
+    gfx.write(0, 68, format_power(LABEL_PV, model.power_pv_w));
     gfx.setFont(&font::freeSans12pt7b);
-    gfx.write(0, 96, format_accumulated_power(LABEL_PV_ACCUMULATED, model.power_pv_accumulated));
+    gfx.write(0, 96, format_accumulated_power_kwh(LABEL_PV_ACCUMULATED, model.power_pv_accumulated_kwh));
 
     gfx.setFont(&font::freeSans18pt7b);
-    gfx.write(0, 150, format_power(LABEL_LOAD, model.load));
+    gfx.write(0, 150, format_power(LABEL_LOAD, model.load_w));
     gfx.setFont(&font::freeSans12pt7b);
-    gfx.write(0, 178, format_accumulated_power(LABEL_LOAD_ACCUMULATED, model.load_accumulated));
+    gfx.write(0, 178, format_accumulated_power_kwh(LABEL_LOAD_ACCUMULATED, model.load_accumulated_kwh));
 
     gfx.setFont(&font::freeSans18pt7b);
-    gfx.write(0, 234, format_accumulated_power(LABEL_SURPLUS, model.power_surplus_accumulated));
+    gfx.write(0, 234, format_accumulated_power_kwh(LABEL_SURPLUS, model.power_surplus_accumulated_kwh));
 
     gfx.setFont(&font::freeSans18pt7b);
-    gfx.write(0, 291, format_accumulated_power(LABEL_NETWORK, model.power_network_accumulated));
+    gfx.write(0, 291, format_accumulated_power_kwh(LABEL_NETWORK, model.power_network_accumulated_kwh));
 
     gfx.setFont(&font::freeSans18pt7b);
     gfx.writeCentered(338, 68, format_charge(model.charge));

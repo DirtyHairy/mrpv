@@ -4,20 +4,20 @@
 namespace api {
 
 struct current_power_response_t {
-    double ppv;
-    double pload;
-    double soc;
-    double pgrid;
-    double pbat;
+    float ppv;
+    float pload;
+    float soc;
+    float pgrid;
+    float pbat;
 };
 
 struct accumulated_power_response_t {
-    double eCharge;
-    double eDischarge;
-    double eGridCharge;
-    double eInput;
-    double eOutput;
-    double epv;
+    float eCharge;
+    float eDischarge;
+    float eGridCharge;
+    float eInput;
+    float eOutput;
+    float epv;
 };
 
 enum class request_status_t {

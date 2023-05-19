@@ -27,8 +27,6 @@ void init_nvfs() {
     ESP_ERROR_CHECK(result);
 }
 
-}  // namespace
-
 void run() {
     setenv("TZ", TIMEZONE, 1);
     tzset();
@@ -62,12 +60,12 @@ void run() {
                            .battery_status = view::battery_status_t::full,
                            .charging = true,
                            .epoch = static_cast<uint64_t>(time(nullptr)),
-                           .power_pv = 7963.4,
-                           .power_pv_accumulated = 16794,
-                           .load = 1076,
-                           .load_accumulated = 10970,
-                           .power_surplus_accumulated = 3212,
-                           .power_network_accumulated = 7723,
+                           .power_pv_w = 7963.4,
+                           .power_pv_accumulated_kwh = 16.794,
+                           .load_w = 1076,
+                           .load_accumulated_kwh = 10.970,
+                           .power_surplus_accumulated_kwh = 3.212,
+                           .power_network_accumulated_kwh = 7.723,
                            .charge = 74};
 
     strcpy(model.error_message, "no connection to API");
@@ -76,6 +74,8 @@ void run() {
     network::stop();
     display_task::wait();
 }
+
+}  // namespace
 
 extern "C" void app_main(void) {
     run();
