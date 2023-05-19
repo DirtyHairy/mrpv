@@ -26,4 +26,4 @@ idf_component_register(SRCS
 
     INCLUDE_DIRS ".")
 
-target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers -Wno-deprecated-enum-enum-conversion)

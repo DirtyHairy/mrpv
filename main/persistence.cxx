@@ -11,6 +11,7 @@ RTC_NOINIT_ATTR view::model_t persistence::last_view;
 
 RTC_NOINIT_ATTR uint64_t persistence::ts_first_update;
 RTC_NOINIT_ATTR uint64_t persistence::ts_last_update_accumulated_power;
+RTC_NOINIT_ATTR uint64_t persistence::ts_last_time_sync;
 RTC_NOINIT_ATTR uint8_t persistence::view_counter;
 
 void persistence::init() {
@@ -35,5 +36,6 @@ void persistence::init() {
 
     ts_first_update = 0;
     ts_last_update_accumulated_power = 0;
+    ts_last_time_sync = 0;
     view_counter = 0;
 }

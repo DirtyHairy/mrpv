@@ -32,6 +32,8 @@ request_status_t get_accumulated_power_request_status();
 current_power_response_t& get_current_power_response();
 accumulated_power_response_t& get_accumulated_power_response();
 
+const char* get_date_from_request();
+
 }  // namespace api
 
 #endif  // _API_H_

@@ -11,6 +11,7 @@ extern view::model_t last_view;
 
 extern uint64_t ts_first_update;
 extern uint64_t ts_last_update_accumulated_power;
+extern uint64_t ts_last_time_sync;
 
 extern uint8_t view_counter;
 

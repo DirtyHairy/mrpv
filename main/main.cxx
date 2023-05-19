@@ -4,6 +4,7 @@
 #include <esp_system.h>
 #include <esp_timer.h>
 #include <nvs_flash.h>
+#include <sys/time.h>
 
 #include <algorithm>
 #include <cmath>
@@ -13,6 +14,7 @@
 
 #include "api.h"
 #include "config.h"
+#include "date-rfc/rfc-1123.h"
 #include "display_task.h"
 #include "network.h"
 #include "persistence.h"
@@ -34,6 +36,26 @@ void init_nvfs() {
     }
 
     ESP_ERROR_CHECK(result);
+}
+
+void set_date_from_header(const char* header) {
+    time_t tm = 0;
+    istringstream sstream(header);
+
+    sstream >> date::format_rfc1123(tm);
+    if (sstream.fail()) {
+        ESP_LOGE(TAG, "failed to parse date header %s", header);
+        return;
+    }
+
+    timeval tv = {.tv_sec = tm};
+
+    if (settimeofday(&tv, nullptr) == 0) {
+        persistence::ts_last_time_sync = static_cast<uint64_t>(time(nullptr));
+        ESP_LOGI(TAG, "updated time to %lli from server timestamp", tm);
+    } else {
+        ESP_LOGE(TAG, "failed to update time from server timestamp");
+    }
 }
 
 void update_view_with_error(const char* error) {
@@ -120,6 +142,8 @@ void update_view() {
 
         ESP_LOGI(TAG, "ppv = %f | pload = %f | soc = %f | pgrid = %f | pbat = %f", response.ppv, response.pload,
                  response.soc, response.pgrid, response.pbat);
+
+        set_date_from_header(api::get_date_from_request());
     } else {
         api_error << "live data: " << describe_request_error(status_current_power);
         current_view.connection_status = view::connection_status_t::error;

@@ -26,6 +26,8 @@ api::accumulated_power_response_t accumulated_power_response;
 api::request_status_t request_status_current_power;
 api::request_status_t request_status_accumulated_power;
 
+char date_from_request[Http2Request::MAX_DATE_LEN] = "";
+
 const char* get_timestamp() {
     static char timestamp[16];
     snprintf(timestamp, 16, "%llu", time(nullptr));
@@ -223,6 +225,9 @@ api::connection_status_t api::perform_request() {
         request_status_current_power = request_status_t::http_error;
     }
 
+    strncpy(date_from_request, request_current_power.getDate(), Http2Request::MAX_DATE_LEN - 1);
+    date_from_request[Http2Request::MAX_DATE_LEN - 1] = '\0';
+
     if (update_accumulated_data && request_accumulated_power.getHttpStatus() != 200) {
         ESP_LOGE(TAG, "GET for %s failed with HTTP status %li", AESS_API_ACCUMULATED_POWER,
                  request_accumulated_power.getHttpStatus());
@@ -246,3 +251,5 @@ api::request_status_t api::get_accumulated_power_request_status() { return reque
 api::current_power_response_t& api::get_current_power_response() { return current_power_response; }
 
 api::accumulated_power_response_t& api::get_accumulated_power_response() { return accumulated_power_response; }
+
+const char* api::get_date_from_request() { return date_from_request; }

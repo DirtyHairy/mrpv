@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "config.h"
+#include "persistence.h"
 
 namespace {
 
@@ -102,12 +103,20 @@ network::result_t network::start() {
 
     if ((bits & wifi_connected) == 0) return result_t::wifi_timeout;
 
-    ntp_sync_start();
+    if (persistence::ts_last_time_sync == 0 ||
+        static_cast<uint64_t>(time(nullptr)) - persistence::ts_last_time_sync >= MAX_TIME_WITHOUT_TIME_SYNC_MIN * 60) {
+        ntp_sync_start();
 
-    bits = xEventGroupWaitBits(event_group_handle, event_bit::sntp_sync_complete, pdTRUE, pdFAIL,
-                               NTP_TIMEOUT_MSEC / portTICK_PERIOD_MS);
+        bits = xEventGroupWaitBits(event_group_handle, event_bit::sntp_sync_complete, pdTRUE, pdFAIL,
+                                   NTP_TIMEOUT_MSEC / portTICK_PERIOD_MS);
 
-    if ((bits & event_bit::sntp_sync_complete) == 0) return result_t::sntp_timeout;
+        if ((bits & event_bit::sntp_sync_complete) == 0) return result_t::sntp_timeout;
+
+        sntp_stop();
+        persistence::ts_last_time_sync = static_cast<uint64_t>(time(nullptr));
+    } else {
+        ESP_LOGI(TAG, "skipping NTP update");
+    }
 
     return result_t::ok;
 }
