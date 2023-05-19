@@ -34,6 +34,8 @@ IDF package) and a modified version of
 
 The status icons are derived from the [Ionic icon set](https://ionic.io/ionicons).
 
+Date headers are parsed using Koheiru's [RFC 1123 parser](https://github.com/Koheiru/date-rfc).
+
 # License
 
 You are free to use and modifiy this project under the terms of the GPLv3. Please
