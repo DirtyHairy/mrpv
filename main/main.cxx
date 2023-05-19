@@ -105,9 +105,7 @@ void update_view() {
             break;
     }
 
-    if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
-        persistence::ts_first_update = now;
-    }
+    if (persistence::ts_first_update == 0) persistence::ts_first_update = now;
 
     ostringstream api_error;
     const api::request_status_t status_current_power = api::get_current_power_request_status();
