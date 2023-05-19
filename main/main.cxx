@@ -177,11 +177,6 @@ void update_view() {
 
         api_error << "accumulated data: " << describe_request_error(status_accumulated_power);
         current_view.connection_status = view::connection_status_t::error;
-
-        current_view.power_pv_accumulated_kwh = -1;
-        current_view.load_accumulated_kwh = -1;
-        current_view.power_network_accumulated_kwh = -1;
-        current_view.power_surplus_accumulated_kwh = -1;
     }
 
     if (current_view.connection_status != view::connection_status_t::online) {

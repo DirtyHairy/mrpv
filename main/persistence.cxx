@@ -15,8 +15,6 @@ RTC_NOINIT_ATTR uint64_t persistence::ts_last_time_sync;
 RTC_NOINIT_ATTR uint8_t persistence::view_counter;
 
 void persistence::init() {
-    ESP_LOGI(TAG, "ts = %llu %llu", persistence::ts_last_update_accumulated_power, persistence::ts_first_update);
-
     if (esp_reset_reason() == ESP_RST_DEEPSLEEP) return;
 
     ESP_LOGI(TAG, "hard reset, initializing...");
