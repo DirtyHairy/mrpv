@@ -20,6 +20,8 @@ void turn_on();
 
 void display_full(const uint8_t* image);
 void display_partial(const uint8_t* image_old, const uint8_t* image_new);
+void display_partial_old(const uint8_t* image_old);
+void display_partial_new(const uint8_t* image_new);
 
 }  // namespace display_driver
 

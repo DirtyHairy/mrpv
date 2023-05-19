@@ -3,7 +3,6 @@
 #include <esp_sleep.h>
 #include <esp_system.h>
 #include <esp_timer.h>
-#include <freertos/task.h>
 #include <nvs_flash.h>
 
 #include <algorithm>
@@ -200,5 +199,5 @@ extern "C" void app_main(void) {
     for (auto domain : {ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_DOMAIN_RTC_FAST_MEM, ESP_PD_DOMAIN_VDDSDIO})
         esp_sleep_pd_config(domain, ESP_PD_OPTION_AUTO);
 
-    esp_deep_sleep(90 * 1000000);
+    esp_deep_sleep(SLEEP_SECONDS * 1000000);
 }

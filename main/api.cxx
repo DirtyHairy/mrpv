@@ -95,7 +95,7 @@ cJSON* deserialize_response(const uint8_t* serialized_json, cJSON*& data, api::r
 void deserialize_current_power(const uint8_t* serialized_json) {
     cJSON* data = nullptr;
     cJSON* json = deserialize_response(serialized_json, data, request_status_current_power, AESS_API_CURRENT_POWER);
-    if (!json || !data || request_status_accumulated_power != api::request_status_t::ok) return;
+    if (!json || !data || request_status_current_power != api::request_status_t::ok) return;
 
     Defer deallocate_json([&]() { cJSON_Delete(json); });
 
@@ -158,6 +158,9 @@ void set_request_status(api::request_status_t status) {
 
 api::connection_status_t api::perform_request() {
     set_request_status(request_status_t::pending);
+    const bool update_accumulated_data =
+        (static_cast<int64_t>(time(nullptr)) - persistence::ts_last_update_accumulated_power) >=
+        RATE_LIMIT_ACCUMULATED_POWER_SEC;
 
     const char* timestamp = get_timestamp();
     const char* secret = calculate_secret(timestamp);
@@ -192,8 +195,10 @@ api::connection_status_t api::perform_request() {
     snprintf(uri, 128, "%s?sysSn=%s", AESS_API_CURRENT_POWER, AESS_SERIAL);
     connection.addRequest(uri, &request_current_power, headers, 4);
 
-    snprintf(uri, 128, "%s?sysSn=%s&queryDate=%s", AESS_API_ACCUMULATED_POWER, AESS_SERIAL, date);
-    connection.addRequest(uri, &request_accumulated_power, headers, 4);
+    if (update_accumulated_data) {
+        snprintf(uri, 128, "%s?sysSn=%s&queryDate=%s", AESS_API_ACCUMULATED_POWER, AESS_SERIAL, date);
+        connection.addRequest(uri, &request_accumulated_power, headers, 4);
+    }
 
     switch (connection.executePendingRequests(REQUEST_TIMEOUT_MSEC)) {
         case Http2Connection::Status::failed:
@@ -209,6 +214,7 @@ api::connection_status_t api::perform_request() {
     }
 
     set_request_status(request_status_t::ok);
+    if (!update_accumulated_data) request_status_accumulated_power = request_status_t::rate_limit;
 
     if (request_current_power.getHttpStatus() != 200) {
         ESP_LOGE(TAG, "GET for %s failed with HTTP status %li", AESS_API_CURRENT_POWER,
@@ -217,7 +223,7 @@ api::connection_status_t api::perform_request() {
         request_status_current_power = request_status_t::http_error;
     }
 
-    if (request_accumulated_power.getHttpStatus() != 200) {
+    if (update_accumulated_data && request_accumulated_power.getHttpStatus() != 200) {
         ESP_LOGE(TAG, "GET for %s failed with HTTP status %li", AESS_API_ACCUMULATED_POWER,
                  request_accumulated_power.getHttpStatus());
 

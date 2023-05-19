@@ -287,3 +287,7 @@ void display_driver::display_partial(const uint8_t* image_old, const uint8_t* im
     send_command(0x10, image_old, 300 * 50);
     send_command(0x13, image_new, 300 * 50);
 }
+
+void display_driver::display_partial_old(const uint8_t* image_old) { send_command(0x10, image_old, 300 * 50); }
+
+void display_driver::display_partial_new(const uint8_t* image_new) { send_command(0x13, image_new, 300 * 50); }

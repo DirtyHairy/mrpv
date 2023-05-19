@@ -5,10 +5,12 @@
 // clang-format off
 #include "freertos/FreeRTOS.h"
 // clang-format on
+#include "config.h"
 #include "display/display_driver.h"
 #include "freertos/event_groups.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "persistence.h"
 
 namespace {
 
@@ -23,6 +25,19 @@ EventGroupHandle_t event_group_handle;
 void task_main(void*) {
     display_driver::init();
 
+    if (persistence::view_counter == 0) {
+        ESP_LOGI(TAG, "performing full update");
+        display_driver::set_mode_full();
+    } else {
+        ESP_LOGI(TAG, "performing partial update");
+        display_driver::set_mode_partial();
+
+        Adafruit_GFX gfx;
+        view::render(gfx, persistence::last_view);
+
+        display_driver::display_partial_old(gfx.getBuffer());
+    }
+
     ESP_LOGI(TAG, "display driver initialized, waiting for view data");
 
     view::model_t model;
@@ -33,9 +48,13 @@ void task_main(void*) {
     Adafruit_GFX gfx;
     view::render(gfx, model);
 
-    display_driver::set_mode_full();
-    display_driver::display_full(gfx.getBuffer());
+    if (display_driver::get_mode() == display_driver::mode::full)
+        display_driver::display_full(gfx.getBuffer());
+    else
+        display_driver::display_partial_new(gfx.getBuffer());
+
     display_driver::refresh_display();
+    persistence::view_counter = (persistence::view_counter + 1) % FULL_REFRESH_EVERY_CYCLE;
 
     display_driver::turn_off();
 
