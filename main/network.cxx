@@ -113,6 +113,7 @@ network::result_t network::start() {
 }
 
 void network::stop() {
+    if (stopping) return;
     stopping = true;
 
     sntp_stop();

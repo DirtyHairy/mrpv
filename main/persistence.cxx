@@ -1,16 +1,24 @@
 #include "persistence.h"
 
+#include <esp_log.h>
 #include <esp_system.h>
+
+namespace {
+const char* TAG = "persistence";
+}
 
 RTC_NOINIT_ATTR view::model_t persistence::last_view;
 
 RTC_NOINIT_ATTR uint64_t persistence::ts_first_update;
-RTC_NOINIT_ATTR uint64_t persistence::ts_last_update_live_power;
-RTC_NOINIT_ATTR uint64_t persistence::ts_last_update_preview_power;
+RTC_NOINIT_ATTR uint64_t persistence::ts_last_update_accumulated_power;
 RTC_NOINIT_ATTR uint8_t persistence::view_counter;
 
 void persistence::init() {
+    ESP_LOGI(TAG, "ts = %llu %llu", persistence::ts_last_update_accumulated_power, persistence::ts_first_update);
+
     if (esp_reset_reason() == ESP_RST_DEEPSLEEP) return;
+
+    ESP_LOGI(TAG, "hard reset, initializing...");
 
     last_view = {.connection_status = view::connection_status_t::online,
                  .battery_status = view::battery_status_t::full,
@@ -26,7 +34,6 @@ void persistence::init() {
                  .charge = -1};
 
     ts_first_update = 0;
-    ts_last_update_live_power = 0;
-    ts_last_update_preview_power = 0;
+    ts_last_update_accumulated_power = 0;
     view_counter = 0;
 }

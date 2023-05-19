@@ -7,6 +7,8 @@
 
 namespace view {
 
+constexpr size_t ERROR_MESSAGE_MAX_LEN = 128;
+
 enum class connection_status_t { online, error };
 
 enum class battery_status_t { full, half, empty };
@@ -16,7 +18,7 @@ struct model_t {
     battery_status_t battery_status;
     bool charging;
 
-    char error_message[128];
+    char error_message[ERROR_MESSAGE_MAX_LEN];
 
     uint64_t epoch;
 

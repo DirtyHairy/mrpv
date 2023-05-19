@@ -32,7 +32,7 @@ const char* format_time(uint64_t timestamp) {
         return nullptr;
     }
 
-    if (time->tm_wday >= sizeof(weekdays)) {
+    if (time->tm_wday == 0 || time->tm_wday - 1 >= sizeof(weekdays)) {
         ESP_LOGE(TAG, "invalid tm_wday=%i", time->tm_wday);
         return nullptr;
     }
@@ -45,23 +45,27 @@ const char* format_time(uint64_t timestamp) {
     date_formatted[0] = '\0';
     strftime(date_formatted, 64, FORMAT_DATE, time);
 
-    snprintf(string_buffer, STRING_BUFFER_SIZE, FORMAT_DATETIME, time_formatted, weekdays[time->tm_wday],
+    snprintf(string_buffer, STRING_BUFFER_SIZE, FORMAT_DATETIME, time_formatted, weekdays[time->tm_wday - 1],
              date_formatted);
 
     return string_buffer;
 }
 
 const char* format_power(const char* label, float power_w) {
-    if (power_w < 0) return "-";
+    if (power_w < 0)
+        snprintf(string_buffer, STRING_BUFFER_SIZE, "%s: -", label);
+    else
+        snprintf(string_buffer, STRING_BUFFER_SIZE, "%s: %.0fW", label, power_w);
 
-    snprintf(string_buffer, STRING_BUFFER_SIZE, "%s: %.0fW", label, power_w);
     return string_buffer;
 }
 
 const char* format_accumulated_power_kwh(const char* label, float accumulated_power_kwh) {
-    if (accumulated_power_kwh < 0) return "-";
+    if (accumulated_power_kwh < 0)
+        snprintf(string_buffer, STRING_BUFFER_SIZE, "%s: -", label);
+    else
+        snprintf(string_buffer, STRING_BUFFER_SIZE, "%s: %.1fkWh", label, accumulated_power_kwh);
 
-    snprintf(string_buffer, STRING_BUFFER_SIZE, "%s: %.1fkWh", label, accumulated_power_kwh);
     return string_buffer;
 }
 
@@ -91,8 +95,10 @@ void draw_battery_segment_bottom(Adafruit_GFX& gfx, uint32_t x, uint32_t y, uint
     }
 }
 
-void draw_battery(Adafruit_GFX& gfx, uint32_t x, uint32_t y, uint32_t width, uint32_t radius, uint32_t charge) {
+void draw_battery(Adafruit_GFX& gfx, uint32_t x, uint32_t y, uint32_t width, uint32_t radius, int32_t charge) {
     gfx.drawRoundRect(x, y, width, 225, radius, 1);
+
+    if (charge < 0) return;
 
     draw_battery_segment_top(gfx, x + 5, y + 5, width - 10, 10, charge >= 75);
     draw_battery_segment_middle(gfx, x + 5, y + 60, width - 10, charge >= 50);

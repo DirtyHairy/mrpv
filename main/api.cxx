@@ -13,6 +13,7 @@
 #include "config.h"
 #include "defer.h"
 #include "http2/http2_connection.h"
+#include "persistence.h"
 #include "sha512.h"
 
 namespace {
@@ -196,14 +197,12 @@ api::connection_status_t api::perform_request() {
 
     switch (connection.executePendingRequests(REQUEST_TIMEOUT_MSEC)) {
         case Http2Connection::Status::failed:
-            ESP_LOGE(TAG, "requests failed");
-            request_status_accumulated_power = request_status_current_power = request_status_t::transfer_error;
-            return connection_status_t::ok;
+            ESP_LOGE(TAG, "transfer failed");
+            return connection_status_t::transfer_error;
 
         case Http2Connection::Status::timeout:
             ESP_LOGE(TAG, "request timeout");
-            request_status_accumulated_power = request_status_current_power = request_status_t::timeout;
-            return connection_status_t::ok;
+            return connection_status_t::timeout;
 
         default:
             break;
