@@ -23,7 +23,7 @@ void persistence::init() {
     last_view = {.connection_status = view::connection_status_t::online,
                  .battery_status = view::battery_status_t::full,
                  .charging = true,
-                 .error_message = "\0",
+                 .error_message = "",
                  .epoch = 0,
                  .power_pv_w = -1,
                  .power_pv_accumulated_kwh = -1,

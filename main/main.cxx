@@ -39,14 +39,6 @@ void init_nvfs() {
 void update_view_with_error(const char* error) {
     current_view.connection_status = view::connection_status_t::error;
     strncpy(current_view.error_message, error, view::ERROR_MESSAGE_MAX_LEN - 1);
-
-    current_view.power_pv_w = -1;
-    current_view.power_pv_accumulated_kwh = -1;
-    current_view.load_w = -1;
-    current_view.load_accumulated_kwh = -1;
-    current_view.power_surplus_accumulated_kwh = -1;
-    current_view.power_network_accumulated_kwh = -1;
-    current_view.charge = -1;
 }
 
 const char* describe_request_error(api::request_status_t status) {
@@ -79,6 +71,7 @@ const char* describe_request_error(api::request_status_t status) {
 void update_view() {
     current_view = persistence::last_view;
     current_view.connection_status = view::connection_status_t::online;
+    current_view.error_message[0] = '\0';
 
     switch (network::start()) {
         case network::result_t::wifi_timeout:
