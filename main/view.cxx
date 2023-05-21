@@ -22,7 +22,7 @@ constexpr size_t STRING_BUFFER_SIZE = 256;
 char string_buffer[STRING_BUFFER_SIZE];
 
 const char* format_time(uint64_t timestamp) {
-    static const char* weekdays[] = {MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY};
+    static const char* weekdays[] = {SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY};
 
     time_t epoch = timestamp;
     struct tm* time = localtime(&epoch);
@@ -32,7 +32,7 @@ const char* format_time(uint64_t timestamp) {
         return nullptr;
     }
 
-    if (time->tm_wday == 0 || time->tm_wday - 1 >= sizeof(weekdays)) {
+    if (time->tm_wday >= sizeof(weekdays)) {
         ESP_LOGE(TAG, "invalid tm_wday=%i", time->tm_wday);
         return nullptr;
     }
@@ -45,7 +45,7 @@ const char* format_time(uint64_t timestamp) {
     date_formatted[0] = '\0';
     strftime(date_formatted, 64, FORMAT_DATE, time);
 
-    snprintf(string_buffer, STRING_BUFFER_SIZE, FORMAT_DATETIME, time_formatted, weekdays[time->tm_wday - 1],
+    snprintf(string_buffer, STRING_BUFFER_SIZE, FORMAT_DATETIME, time_formatted, weekdays[time->tm_wday],
              date_formatted);
 
     return string_buffer;
