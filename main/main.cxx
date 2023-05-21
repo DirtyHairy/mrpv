@@ -61,13 +61,19 @@ void update_view() {
     current_view = persistence::last_view;
 
     current_view.network_result = network::start();
-    if (current_view.network_result != network::result_t::ok) return;
+    if (current_view.network_result != network::result_t::ok) {
+        persistence::reset_ip_info();
+        return;
+    };
 
     const uint64_t now = static_cast<uint64_t>(time(nullptr));
     current_view.epoch = now;
 
     current_view.connection_status = api::perform_request();
-    if (current_view.connection_status != api::connection_status_t::ok) return;
+    if (current_view.connection_status != api::connection_status_t::ok) {
+        persistence::reset_ip_info();
+        return;
+    }
 
     if (persistence::ts_first_update == 0) persistence::ts_first_update = now;
 

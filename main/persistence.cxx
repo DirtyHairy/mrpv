@@ -3,6 +3,8 @@
 #include <esp_log.h>
 #include <esp_system.h>
 
+#include <cstring>
+
 namespace {
 const char* TAG = "persistence";
 }
@@ -14,8 +16,14 @@ RTC_NOINIT_ATTR uint64_t persistence::ts_last_request_accumulated_power;
 RTC_NOINIT_ATTR uint64_t persistence::ts_last_time_sync;
 RTC_NOINIT_ATTR uint64_t persistence::ts_last_update_current_power;
 RTC_NOINIT_ATTR uint64_t persistence::ts_last_update_accumulated_power;
+RTC_NOINIT_ATTR uint64_t persistence::ts_last_dhcp_update;
 
 RTC_NOINIT_ATTR uint8_t persistence::view_counter;
+
+RTC_NOINIT_ATTR esp_netif_ip_info_t persistence::stored_ip_info;
+RTC_NOINIT_ATTR esp_netif_dns_info_t persistence::stored_dns_info_main;
+RTC_NOINIT_ATTR esp_netif_dns_info_t persistence::stored_dns_info_backup;
+RTC_NOINIT_ATTR esp_netif_dns_info_t persistence::stored_dns_info_fallback;
 
 void persistence::init() {
     if (esp_reset_reason() == ESP_RST_DEEPSLEEP) return;
@@ -43,4 +51,20 @@ void persistence::init() {
     view_counter = 0;
     ts_last_update_current_power = 0;
     ts_last_update_accumulated_power = 0;
+    ts_last_dhcp_update = 0;
+
+    reset_ip_info();
+}
+
+void persistence::reset_ip_info() {
+    memset(&stored_ip_info, 0, sizeof(stored_ip_info));
+    memset(&stored_dns_info_main, 0, sizeof(stored_dns_info_main));
+    memset(&stored_dns_info_backup, 0, sizeof(stored_dns_info_backup));
+    memset(&stored_dns_info_fallback, 0, sizeof(stored_dns_info_fallback));
+}
+
+bool persistence::ip_info_set() {
+    return stored_ip_info.ip.addr != 0 &&
+           (stored_dns_info_main.ip.u_addr.ip4.addr != 0 || stored_dns_info_backup.ip.u_addr.ip4.addr != 0 ||
+            stored_dns_info_fallback.ip.u_addr.ip4.addr != 0);
 }

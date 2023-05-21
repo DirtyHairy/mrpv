@@ -1,6 +1,8 @@
 #ifndef _PERSISTENCE_H_
 #define _PERSISTENCE_H_
 
+#include <esp_netif.h>
+
 #include <cstdint>
 
 #include "view.h"
@@ -14,10 +16,20 @@ extern uint64_t ts_last_request_accumulated_power;
 extern uint64_t ts_last_time_sync;
 extern uint64_t ts_last_update_current_power;
 extern uint64_t ts_last_update_accumulated_power;
+extern uint64_t ts_last_dhcp_update;
 
 extern uint8_t view_counter;
 
+extern esp_netif_ip_info_t stored_ip_info;
+extern esp_netif_dns_info_t stored_dns_info_main;
+extern esp_netif_dns_info_t stored_dns_info_backup;
+extern esp_netif_dns_info_t stored_dns_info_fallback;
+
 void init();
+
+void reset_ip_info();
+
+bool ip_info_set();
 
 }  // namespace persistence
 

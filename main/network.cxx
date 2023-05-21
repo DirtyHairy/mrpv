@@ -21,6 +21,8 @@ bool stopping{false};
 
 EventGroupHandle_t event_group_handle;
 
+esp_netif_t* iface;
+
 void on_wifi_sta_start(void*, esp_event_base_t, int32_t, void*) { ESP_ERROR_CHECK(esp_wifi_connect()); }
 
 void on_wifi_disconnect(void*, esp_event_base_t, int32_t, void*) {
@@ -60,7 +62,20 @@ void register_events() {
 
 void init_wifi() {
     ESP_ERROR_CHECK(esp_netif_init());
-    esp_netif_create_default_wifi_sta();
+    iface = esp_netif_create_default_wifi_sta();
+
+    if (persistence::ip_info_set()) {
+        esp_netif_dhcpc_stop(iface);
+
+        esp_netif_set_ip_info(iface, &persistence::stored_ip_info);
+        esp_netif_set_dns_info(iface, ESP_NETIF_DNS_MAIN, &persistence::stored_dns_info_main);
+        esp_netif_set_dns_info(iface, ESP_NETIF_DNS_BACKUP, &persistence::stored_dns_info_backup);
+        esp_netif_set_dns_info(iface, ESP_NETIF_DNS_FALLBACK, &persistence::stored_dns_info_fallback);
+
+        ESP_LOGI(TAG, "using cached DHCP lease");
+    }
+
+    esp_netif_set_hostname(iface, HOSTNAME);
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -93,6 +108,13 @@ void network::init() {
 }
 
 network::result_t network::start() {
+    if (persistence::ts_last_dhcp_update != 0 &&
+        static_cast<uint64_t>(time(nullptr)) - persistence::ts_last_dhcp_update >= 60 * TTL_DHCP_LEASE_MINUTES) {
+        persistence::reset_ip_info();
+
+        ESP_LOGI(TAG, "DHCP lease TTL expired, removing stored lease");
+    }
+
     init_wifi();
 
     EventBits_t bits;
@@ -103,8 +125,8 @@ network::result_t network::start() {
 
     if ((bits & wifi_connected) == 0) return result_t::wifi_timeout;
 
-    if (persistence::ts_last_time_sync == 0 ||
-        static_cast<uint64_t>(time(nullptr)) - persistence::ts_last_time_sync >= MAX_TIME_WITHOUT_TIME_SYNC_MIN * 60) {
+    if (persistence::ts_last_time_sync == 0 || static_cast<uint64_t>(time(nullptr)) - persistence::ts_last_time_sync >=
+                                                   MAX_TIME_WITHOUT_TIME_SYNC_MINUTES * 60) {
         ntp_sync_start();
 
         bits = xEventGroupWaitBits(event_group_handle, event_bit::sntp_sync_complete, pdTRUE, pdFAIL,
@@ -116,6 +138,17 @@ network::result_t network::start() {
         persistence::ts_last_time_sync = static_cast<uint64_t>(time(nullptr));
     } else {
         ESP_LOGI(TAG, "skipping NTP update");
+    }
+
+    if (!persistence::ip_info_set()) {
+        esp_netif_get_ip_info(iface, &persistence::stored_ip_info);
+        esp_netif_get_dns_info(iface, ESP_NETIF_DNS_MAIN, &persistence::stored_dns_info_main);
+        esp_netif_get_dns_info(iface, ESP_NETIF_DNS_BACKUP, &persistence::stored_dns_info_backup);
+        esp_netif_get_dns_info(iface, ESP_NETIF_DNS_FALLBACK, &persistence::stored_dns_info_fallback);
+
+        persistence::ts_last_dhcp_update = static_cast<uint64_t>(time(nullptr));
+
+        ESP_LOGI(TAG, "stored DHCP lease for reuse");
     }
 
     return result_t::ok;
