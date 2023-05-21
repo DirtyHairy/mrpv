@@ -3,22 +3,22 @@
 
 #include <cstdint>
 
+#include "api.h"
 #include "display/adagfx.h"
+#include "network.h"
 
 namespace view {
-
-constexpr size_t ERROR_MESSAGE_MAX_LEN = 128;
-
-enum class connection_status_t { online, error };
 
 enum class battery_status_t { full, half, empty };
 
 struct model_t {
-    connection_status_t connection_status;
     battery_status_t battery_status;
     bool charging;
 
-    char error_message[ERROR_MESSAGE_MAX_LEN];
+    network::result_t network_result;
+    api::connection_status_t connection_status;
+    api::request_status_t request_status_current_power;
+    api::request_status_t request_status_accumulated_power;
 
     uint64_t epoch;
 

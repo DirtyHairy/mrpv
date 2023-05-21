@@ -10,7 +10,6 @@
 #include <cmath>
 #include <cstring>
 #include <sstream>
-#include <string>
 
 #include "api.h"
 #include "config.h"
@@ -58,103 +57,49 @@ void set_date_from_header(const char* header) {
     }
 }
 
-void update_view_with_error(const char* error) {
-    current_view.connection_status = view::connection_status_t::error;
-    strncpy(current_view.error_message, error, view::ERROR_MESSAGE_MAX_LEN - 1);
-}
-
-const char* describe_request_error(api::request_status_t status) {
-    switch (status) {
-        case api::request_status_t::api_error:
-            return "API error";
-
-        case api::request_status_t::http_error:
-            return "HTTP error";
-
-        case api::request_status_t::invalid_response:
-            return "bad response";
-
-        case api::request_status_t::rate_limit:
-            return "rate limit";
-
-        case api::request_status_t::timeout:
-            return "timeout";
-
-        case api::request_status_t::ok:
-            return "none";
-
-        case api::request_status_t::pending:
-            return "internal";
-    }
-
-    return "";
-}
-
 void update_view() {
     current_view = persistence::last_view;
-    current_view.connection_status = view::connection_status_t::online;
-    current_view.error_message[0] = '\0';
 
-    switch (network::start()) {
-        case network::result_t::wifi_timeout:
-        case network::result_t::wifi_disconnected:
-            return update_view_with_error("wifi: connection failed");
-
-        case network::result_t::sntp_timeout:
-            return update_view_with_error("ntp: failed to sync time");
-
-        case network::result_t::ok:
-            break;
-    }
+    current_view.network_result = network::start();
+    if (current_view.network_result != network::result_t::ok) return;
 
     const uint64_t now = static_cast<uint64_t>(time(nullptr));
     current_view.epoch = now;
 
-    switch (api::perform_request()) {
-        case api::connection_status_t::error:
-            return update_view_with_error("API: connection error");
-
-        case api::connection_status_t::pending:
-            return update_view_with_error("API: internal");
-
-        case api::connection_status_t::timeout:
-            return update_view_with_error("API: timeout");
-
-        case api::connection_status_t::transfer_error:
-            return update_view_with_error("API: transfer error");
-
-        case api::connection_status_t::ok:
-            break;
-    }
+    current_view.connection_status = api::perform_request();
+    if (current_view.connection_status != api::connection_status_t::ok) return;
 
     if (persistence::ts_first_update == 0) persistence::ts_first_update = now;
 
-    ostringstream api_error;
-    const api::request_status_t status_current_power = api::get_current_power_request_status();
-    const api::request_status_t status_accumulated_power = api::get_accumulated_power_request_status();
-
-    if (status_current_power == api::request_status_t::ok) {
+    current_view.request_status_current_power = api::get_current_power_request_status();
+    if (current_view.request_status_current_power == api::request_status_t::ok) {
         api::current_power_response_t& response = api::get_current_power_response();
 
         current_view.power_pv_w = max(response.ppv, 0.f);
         current_view.load_w = max(response.pload, 0.f);
         current_view.charge = round(response.soc);
 
+        persistence::ts_last_update_current_power = now;
+
         ESP_LOGI(TAG, "ppv = %f | pload = %f | soc = %f | pgrid = %f | pbat = %f", response.ppv, response.pload,
                  response.soc, response.pgrid, response.pbat);
-    } else {
-        api_error << "live data: " << describe_request_error(status_current_power);
-        current_view.connection_status = view::connection_status_t::error;
-
-        current_view.power_pv_w = -1;
-        current_view.load_w = -1;
-        current_view.charge = -1;
     }
 
-    if (status_current_power != api::request_status_t::timeout) set_date_from_header(api::get_date_from_request());
+    if (current_view.request_status_current_power != api::request_status_t::timeout)
+        set_date_from_header(api::get_date_from_request());
+
+    const api::request_status_t status_accumulated_power = api::get_accumulated_power_request_status();
+
+    if (status_accumulated_power != api::request_status_t::no_request)
+        current_view.request_status_accumulated_power = status_accumulated_power;
+
+    if (status_accumulated_power == api::request_status_t::rate_limit &&
+        now - persistence::ts_first_update <= RATE_LIMIT_ACCUMULATED_POWER_SEC)
+        current_view.request_status_accumulated_power = api::request_status_t::ok;
 
     if (status_accumulated_power == api::request_status_t::ok) {
         api::accumulated_power_response_t& response = api::get_accumulated_power_response();
+        current_view.request_status_accumulated_power = status_accumulated_power;
 
         current_view.power_pv_accumulated_kwh = response.epv;
         current_view.load_accumulated_kwh =
@@ -167,25 +112,19 @@ void update_view() {
         ESP_LOGI(TAG, "eCharge = %f | eDischarge = %f | eGridCharge = %f | eInput = %f | eOutput = %f | epv = %f",
                  response.eCharge, response.eDischarge, response.eGridCharge, response.eInput, response.eOutput,
                  response.epv);
-    } else if (status_accumulated_power != api::request_status_t::rate_limit ||
-               (now - persistence::ts_last_update_accumulated_power >=
-                    RATE_LIMIT_ACCUMULATED_POWER_SEC + RATE_LIMIT_GRACE_TIME_SEC &&
-                now - persistence::ts_first_update >= RATE_LIMIT_ACCUMULATED_POWER_SEC + RATE_LIMIT_GRACE_TIME_SEC)
+    }
 
-    ) {
-        if (status_current_power != api::request_status_t::ok) api_error << " , ";
+    if (now - persistence::ts_last_update_current_power > TTL_CURRENT_POWER_MINUTES * 60) {
+        current_view.power_pv_w = -1;
+        current_view.load_w = -1;
+        current_view.charge = -1;
+    }
 
-        api_error << "accumulated data: " << describe_request_error(status_accumulated_power);
-        current_view.connection_status = view::connection_status_t::error;
-
+    if (now - persistence::ts_last_update_accumulated_power > TTL_ACCUMULATED_POWER_MINUTES * 60) {
         current_view.power_pv_accumulated_kwh = -1;
         current_view.load_accumulated_kwh = -1;
         current_view.power_network_accumulated_kwh = -1;
         current_view.power_surplus_accumulated_kwh = -1;
-    }
-
-    if (current_view.connection_status != view::connection_status_t::online) {
-        strncpy(current_view.error_message, api_error.str().c_str(), view::ERROR_MESSAGE_MAX_LEN - 1);
     }
 }
 

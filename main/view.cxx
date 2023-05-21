@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <sstream>
 #include <string>
 
 #include "config.h"
@@ -51,6 +52,79 @@ const char* format_time(uint64_t timestamp) {
     return string_buffer;
 }
 
+bool has_error(const view::model_t& model) {
+    return model.network_result != network::result_t::ok || model.connection_status != api::connection_status_t::ok ||
+           model.request_status_current_power != api::request_status_t::ok ||
+           model.request_status_accumulated_power != api::request_status_t::ok;
+}
+
+const char* describe_network_result(network::result_t result) {
+    switch (result) {
+        case network::result_t::wifi_disconnected:
+        case network::result_t::wifi_timeout:
+            return "wifi: connection failed";
+
+        case network::result_t::sntp_timeout:
+            return "ntp: failed to sync";
+
+        case network::result_t::ok:
+            return "ok";
+    }
+
+    return "";
+}
+
+const char* describe_connection_status(api::connection_status_t status) {
+    switch (status) {
+        case api::connection_status_t::error:
+            return "API: connection error";
+
+        case api::connection_status_t::pending:
+            return "API: internal error";
+
+        case api::connection_status_t::timeout:
+            return "API: timeout";
+
+        case api::connection_status_t::transfer_error:
+            return "API: transfer error";
+
+        case api::connection_status_t::ok:
+            return "API: ok";
+    }
+
+    return "";
+}
+
+const char* describe_request_status(api::request_status_t status) {
+    switch (status) {
+        case api::request_status_t::api_error:
+            return "API error";
+
+        case api::request_status_t::http_error:
+            return "HTTP error";
+
+        case api::request_status_t::invalid_response:
+            return "bad response";
+
+        case api::request_status_t::rate_limit:
+            return "rate limit";
+
+        case api::request_status_t::timeout:
+            return "timeout";
+
+        case api::request_status_t::ok:
+            return "ok";
+
+        case api::request_status_t::no_request:
+            return "no request";
+
+        case api::request_status_t::pending:
+            return "pending";
+    }
+
+    return "";
+}
+
 const char* format_power(const char* label, float power_w) {
     if (power_w < 0)
         snprintf(string_buffer, STRING_BUFFER_SIZE, "%s: -", label);
@@ -74,6 +148,33 @@ const char* format_charge(int32_t charge) {
 
     snprintf(string_buffer, STRING_BUFFER_SIZE, "%lu%%", min(charge, static_cast<int32_t>(100)));
     return string_buffer;
+}
+
+void draw_error_message(Adafruit_GFX& gfx, const char* message) {
+    gfx.setFont(nullptr);
+    gfx.writeRightJustified(400, 23, message);
+}
+
+void draw_error(Adafruit_GFX& gfx, const view::model_t& model) {
+    if (!has_error(model)) return;
+
+    if (model.network_result != network::result_t::ok)
+        return draw_error_message(gfx, describe_network_result(model.network_result));
+
+    if (model.connection_status != api::connection_status_t::ok)
+        return draw_error_message(gfx, describe_connection_status(model.connection_status));
+
+    ostringstream sstream;
+    if (model.request_status_current_power != api::request_status_t::ok)
+        sstream << "live data: " << describe_request_status(model.request_status_current_power);
+
+    if (model.request_status_accumulated_power != api::request_status_t::ok) {
+        if (model.request_status_current_power != api::request_status_t::ok) sstream << ", ";
+
+        sstream << "acc data: " << describe_request_status(model.request_status_accumulated_power);
+    }
+
+    draw_error_message(gfx, sstream.str().c_str());
 }
 
 void draw_battery_segment_top(Adafruit_GFX& gfx, uint32_t x, uint32_t y, uint32_t width, uint32_t radius, bool filled) {
@@ -109,16 +210,12 @@ void draw_battery(Adafruit_GFX& gfx, uint32_t x, uint32_t y, uint32_t width, uin
 void draw_status_icons(Adafruit_GFX& gfx, const view::model_t& model) {
     uint32_t x = 399;
 
-    switch (model.connection_status) {
-        case view::connection_status_t::online:
-            x -= icon::wifi_width;
-            gfx.drawXBitmap(x, 1, icon::wifi_data, icon::wifi_width, icon::wifi_height, 1);
-            break;
-
-        case view::connection_status_t::error:
-            x -= icon::warning_width;
-            gfx.drawXBitmap(x, 0, icon::warning_data, icon::warning_width, icon::warning_height, 1);
-            break;
+    if (has_error(model)) {
+        x -= icon::warning_width;
+        gfx.drawXBitmap(x, 0, icon::warning_data, icon::warning_width, icon::warning_height, 1);
+    } else {
+        x -= icon::wifi_width;
+        gfx.drawXBitmap(x, 1, icon::wifi_data, icon::wifi_width, icon::wifi_height, 1);
     }
 
     x -= 5;
@@ -159,11 +256,7 @@ void view::render(Adafruit_GFX& gfx, const model_t& model) {
     }
 
     draw_status_icons(gfx, model);
-
-    if (model.error_message[0] != '\0') {
-        gfx.setFont(nullptr);
-        gfx.writeRightJustified(400, 23, model.error_message);
-    }
+    draw_error(gfx, model);
 
     gfx.setFont(&font::freeSans18pt7b);
     gfx.write(0, 68, format_power(LABEL_PV, model.power_pv_w));
