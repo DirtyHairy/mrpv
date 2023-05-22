@@ -2,6 +2,7 @@
 
 #include <cJSON.h>
 #include <esp_log.h>
+#include <esp_pm.h>
 #include <sys/time.h>
 
 #include <cmath>
@@ -19,6 +20,8 @@
 namespace {
 
 const char* TAG = "api";
+
+esp_pm_lock_handle_t pm_lock;
 
 api::current_power_response_t current_power_response;
 api::accumulated_power_response_t accumulated_power_response;
@@ -153,6 +156,8 @@ void deserialize_accumulated_power(const uint8_t* serialized_json) {
 
 }  // namespace
 
+void api::init() { esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "api lock", &pm_lock); }
+
 api::connection_status_t api::perform_request() {
     request_status_current_power = request_status_accumulated_power = request_status_t::pending;
 
@@ -167,7 +172,12 @@ api::connection_status_t api::perform_request() {
     const char* date = get_date();
 
     Http2Connection connection(AESS_API_SERVER);
-    switch (connection.connect(CONNECTION_TIMEOUT_MSEC)) {
+
+    esp_pm_lock_acquire(pm_lock);
+    Http2Connection::Status status = connection.connect(CONNECTION_TIMEOUT_MSEC);
+    esp_pm_lock_release(pm_lock);
+
+    switch (status) {
         case Http2Connection::Status::failed:
             ESP_LOGE(TAG, "connection failed");
             return connection_status_t::error;

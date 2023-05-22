@@ -24,6 +24,8 @@ enum class request_status_t { pending, ok, invalid_response, http_error, api_err
 
 enum class connection_status_t { pending, ok, error, timeout, transfer_error };
 
+void init();
+
 connection_status_t perform_request();
 
 request_status_t get_current_power_request_status();

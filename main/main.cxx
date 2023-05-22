@@ -1,5 +1,6 @@
 #include <esp_event.h>
 #include <esp_log.h>
+#include <esp_pm.h>
 #include <esp_sleep.h>
 #include <esp_system.h>
 #include <esp_timer.h>
@@ -137,6 +138,9 @@ void update_view() {
 }  // namespace
 
 extern "C" void app_main(void) {
+    esp_pm_config_esp32_t pm_config = {.max_freq_mhz = 240, .min_freq_mhz = 80, .light_sleep_enable = true};
+    if (esp_pm_configure(&pm_config) != ESP_OK) ESP_LOGE(TAG, "failed to configure power management");
+
     setenv("TZ", TIMEZONE, 1);
     tzset();
 
@@ -145,6 +149,7 @@ extern "C" void app_main(void) {
     init_nvfs();
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     network::init();
+    api::init();
 
     update_view();
 
