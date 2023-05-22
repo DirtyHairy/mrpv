@@ -25,6 +25,9 @@ RTC_NOINIT_ATTR esp_netif_dns_info_t persistence::stored_dns_info_main;
 RTC_NOINIT_ATTR esp_netif_dns_info_t persistence::stored_dns_info_backup;
 RTC_NOINIT_ATTR esp_netif_dns_info_t persistence::stored_dns_info_fallback;
 
+RTC_NOINIT_ATTR uint8_t persistence::stored_bssid[6];
+RTC_NOINIT_ATTR bool persistence::bssid_set;
+
 void persistence::init() {
     if (esp_reset_reason() == ESP_RST_DEEPSLEEP) return;
 
@@ -54,6 +57,7 @@ void persistence::init() {
     ts_last_dhcp_update = 0;
 
     reset_ip_info();
+    reset_bssid();
 }
 
 void persistence::reset_ip_info() {
@@ -67,4 +71,9 @@ bool persistence::ip_info_set() {
     return stored_ip_info.ip.addr != 0 &&
            (stored_dns_info_main.ip.u_addr.ip4.addr != 0 || stored_dns_info_backup.ip.u_addr.ip4.addr != 0 ||
             stored_dns_info_fallback.ip.u_addr.ip4.addr != 0);
+}
+
+void persistence::reset_bssid() {
+    memset(stored_bssid, 0, sizeof(stored_bssid));
+    bssid_set = false;
 }

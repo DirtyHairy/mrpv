@@ -25,11 +25,16 @@ extern esp_netif_dns_info_t stored_dns_info_main;
 extern esp_netif_dns_info_t stored_dns_info_backup;
 extern esp_netif_dns_info_t stored_dns_info_fallback;
 
+extern uint8_t stored_bssid[6];
+extern bool bssid_set;
+
 void init();
 
 void reset_ip_info();
 
 bool ip_info_set();
+
+void reset_bssid();
 
 }  // namespace persistence
 

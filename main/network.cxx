@@ -87,6 +87,11 @@ void init_wifi() {
     strcpy(reinterpret_cast<char*>(wifi_config.sta.ssid), WIFI_SSID);
     strcpy(reinterpret_cast<char*>(wifi_config.sta.password), WIFI_PASSWORD);
 
+    if (persistence::bssid_set) {
+        memcpy(wifi_config.sta.bssid, persistence::stored_bssid, sizeof(persistence::stored_bssid));
+        wifi_config.sta.bssid_set = true;
+    }
+
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 }
@@ -121,9 +126,20 @@ network::result_t network::start() {
     bits = xEventGroupWaitBits(event_group_handle, event_bit::wifi_connected | event_bit::wifi_disconnected, pdTRUE,
                                pdFALSE, WIFI_TIMEOUT_MSEC / portTICK_PERIOD_MS);
 
-    if ((bits & event_bit::wifi_disconnected) != 0) return result_t::wifi_disconnected;
+    if ((bits & event_bit::wifi_disconnected) != 0) {
+        persistence::reset_bssid();
+        return result_t::wifi_disconnected;
+    }
 
-    if ((bits & wifi_connected) == 0) return result_t::wifi_timeout;
+    if ((bits & wifi_connected) == 0) {
+        persistence::reset_bssid();
+        return result_t::wifi_timeout;
+    }
+
+    wifi_ap_record_t ap_info;
+    esp_wifi_sta_get_ap_info(&ap_info);
+    memcpy(persistence::stored_bssid, ap_info.bssid, sizeof(persistence::stored_bssid));
+    persistence::bssid_set = true;
 
     if (persistence::ts_last_time_sync == 0 || static_cast<uint64_t>(time(nullptr)) - persistence::ts_last_time_sync >=
                                                    MAX_TIME_WITHOUT_TIME_SYNC_MINUTES * 60) {
