@@ -48,7 +48,7 @@ const char* calculate_secret(const char* timestamp) {
 const char* get_date() {
     static char date[11];
     time_t timeval = time(nullptr);
-    strftime(date, 11, "%Y-%m-%d", localtime(&timeval));
+    strftime(date, 11, "%Y-%m-%d", gmtime(&timeval));
 
     return date;
 }
