@@ -61,20 +61,33 @@ void register_events() {
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_sta_got_ip, nullptr));
 }
 
+void restore_cached_dhcp_lease() {
+    esp_netif_dhcpc_stop(iface);
+
+    esp_netif_set_ip_info(iface, &persistence::stored_ip_info);
+    esp_netif_set_dns_info(iface, ESP_NETIF_DNS_MAIN, &persistence::stored_dns_info_main);
+    esp_netif_set_dns_info(iface, ESP_NETIF_DNS_BACKUP, &persistence::stored_dns_info_backup);
+    esp_netif_set_dns_info(iface, ESP_NETIF_DNS_FALLBACK, &persistence::stored_dns_info_fallback);
+
+    ESP_LOGI(TAG, "using cached DHCP lease");
+}
+
+void store_dhcp_lease() {
+    esp_netif_get_ip_info(iface, &persistence::stored_ip_info);
+    esp_netif_get_dns_info(iface, ESP_NETIF_DNS_MAIN, &persistence::stored_dns_info_main);
+    esp_netif_get_dns_info(iface, ESP_NETIF_DNS_BACKUP, &persistence::stored_dns_info_backup);
+    esp_netif_get_dns_info(iface, ESP_NETIF_DNS_FALLBACK, &persistence::stored_dns_info_fallback);
+
+    persistence::ts_last_dhcp_update = static_cast<uint64_t>(time(nullptr));
+
+    ESP_LOGI(TAG, "stored DHCP lease for reuse");
+}
+
 void init_wifi() {
     ESP_ERROR_CHECK(esp_netif_init());
     iface = esp_netif_create_default_wifi_sta();
 
-    if (persistence::ip_info_set()) {
-        esp_netif_dhcpc_stop(iface);
-
-        esp_netif_set_ip_info(iface, &persistence::stored_ip_info);
-        esp_netif_set_dns_info(iface, ESP_NETIF_DNS_MAIN, &persistence::stored_dns_info_main);
-        esp_netif_set_dns_info(iface, ESP_NETIF_DNS_BACKUP, &persistence::stored_dns_info_backup);
-        esp_netif_set_dns_info(iface, ESP_NETIF_DNS_FALLBACK, &persistence::stored_dns_info_fallback);
-
-        ESP_LOGI(TAG, "using cached DHCP lease");
-    }
+    if (persistence::ip_info_set()) restore_cached_dhcp_lease();
 
     esp_netif_set_hostname(iface, HOSTNAME);
 
@@ -161,16 +174,7 @@ network::result_t network::start() {
     udp_logging::start();
 #endif
 
-    if (!persistence::ip_info_set()) {
-        esp_netif_get_ip_info(iface, &persistence::stored_ip_info);
-        esp_netif_get_dns_info(iface, ESP_NETIF_DNS_MAIN, &persistence::stored_dns_info_main);
-        esp_netif_get_dns_info(iface, ESP_NETIF_DNS_BACKUP, &persistence::stored_dns_info_backup);
-        esp_netif_get_dns_info(iface, ESP_NETIF_DNS_FALLBACK, &persistence::stored_dns_info_fallback);
-
-        persistence::ts_last_dhcp_update = static_cast<uint64_t>(time(nullptr));
-
-        ESP_LOGI(TAG, "stored DHCP lease for reuse");
-    }
+    if (!persistence::ip_info_set()) store_dhcp_lease();
 
     return result_t::ok;
 }

@@ -1,6 +1,7 @@
 #include "view.h"
 
 #include <esp_log.h>
+#include <esp_pm.h>
 
 #include <algorithm>
 #include <cstdlib>
@@ -247,6 +248,11 @@ void draw_status_icons(Adafruit_GFX& gfx, const view::model_t& model) {
 }  // namespace
 
 void view::render(Adafruit_GFX& gfx, const model_t& model) {
+    esp_pm_lock_handle_t pm_lock;
+
+    esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "view lock", &pm_lock);
+    esp_pm_lock_acquire(pm_lock);
+
     gfx.setTextWrap(false);
 
     const char* formatted_time(format_time(model.epoch));
@@ -278,4 +284,6 @@ void view::render(Adafruit_GFX& gfx, const model_t& model) {
     gfx.writeCentered(338, 68, format_charge(model.charge));
 
     draw_battery(gfx, 285, 75, 115, 10, model.charge);
+
+    esp_pm_lock_release(pm_lock);
 }

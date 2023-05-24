@@ -5,7 +5,6 @@
 // clang-format off
 #include "freertos/FreeRTOS.h"
 // clang-format on
-#include <esp_pm.h>
 
 #include "config.h"
 #include "display/display_driver.h"
@@ -23,7 +22,6 @@ enum event_bit { display_complete = 0x01 };
 TaskHandle_t task_handle;
 QueueHandle_t queue_handle;
 EventGroupHandle_t event_group_handle;
-esp_pm_lock_handle_t pm_lock;
 
 void task_main(void*) {
     display_driver::init();
@@ -37,9 +35,7 @@ void task_main(void*) {
 
         Adafruit_GFX gfx;
 
-        esp_pm_lock_acquire(pm_lock);
         view::render(gfx, persistence::last_view);
-        esp_pm_lock_release(pm_lock);
 
         display_driver::display_partial_old(gfx.getBuffer());
     }
@@ -53,9 +49,7 @@ void task_main(void*) {
 
     Adafruit_GFX gfx;
 
-    esp_pm_lock_acquire(pm_lock);
     view::render(gfx, model);
-    esp_pm_lock_release(pm_lock);
 
     if (display_driver::get_mode() == display_driver::mode::full)
         display_driver::display_full(gfx.getBuffer());
@@ -79,8 +73,6 @@ void task_main(void*) {
 void display_task::start() {
     queue_handle = xQueueCreate(1, sizeof(view::model_t));
     event_group_handle = xEventGroupCreate();
-
-    esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "display lock", &pm_lock);
 
     xTaskCreate(task_main, "display_task", 4096, nullptr, 10, &task_handle);
 }
