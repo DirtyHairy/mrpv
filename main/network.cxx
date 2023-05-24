@@ -10,6 +10,7 @@
 
 #include "config.h"
 #include "persistence.h"
+#include "udp_logging.h"
 
 namespace {
 
@@ -156,6 +157,10 @@ network::result_t network::start() {
         ESP_LOGI(TAG, "skipping NTP update");
     }
 
+#if UDP_LOGGING
+    udp_logging::start();
+#endif
+
     if (!persistence::ip_info_set()) {
         esp_netif_get_ip_info(iface, &persistence::stored_ip_info);
         esp_netif_get_dns_info(iface, ESP_NETIF_DNS_MAIN, &persistence::stored_dns_info_main);
@@ -172,6 +177,11 @@ network::result_t network::start() {
 
 void network::stop() {
     if (stopping) return;
+
+#if UDP_LOGGING
+    udp_logging::stop();
+#endif
+
     stopping = true;
 
     sntp_stop();

@@ -154,7 +154,10 @@ extern "C" void app_main(void) {
     update_view();
 
     display_task::display(current_view);
+
+#if !UDP_LOGGING
     network::stop();
+#endif
     display_task::wait();
 
     persistence::last_view = current_view;

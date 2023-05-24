@@ -21,6 +21,7 @@ idf_component_register(SRCS
     "sha512.cxx"
     "api.cxx"
     "persistence.cxx"
+    "udp_logging.cxx"
 
     "main.cxx"
 

@@ -202,6 +202,8 @@ api::connection_status_t api::perform_request() {
 
     char uri[128];
 
+    ESP_LOGI(TAG, "requesting date %s", date);
+
     snprintf(uri, 128, "%s?sysSn=%s", AESS_API_CURRENT_POWER, AESS_SERIAL);
     connection.addRequest(uri, &request_current_power, headers, 4);
 
